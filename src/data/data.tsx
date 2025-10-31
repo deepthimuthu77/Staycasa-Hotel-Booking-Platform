@@ -17,6 +17,17 @@ export type Hotel = {
   is_featured: boolean;
 };
 
+// Added User type from AccountPage
+export type UserProfile = {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+};
+
+
 // --- MOCK DATA ---
 export const mockHotel: Hotel = {
   id: "b3f8e1a4-1111-2222-3333-6f9a4d",
@@ -38,6 +49,17 @@ export const mockHotel: Hotel = {
   is_featured: true,
 };
 
+// Added mockUser from AccountPage
+export const mockUser: UserProfile = {
+  id: "u-1",
+  email: "anita.desai@example.com",
+  full_name: "Anita Desai",
+  phone: "+919876543210",
+  bio: "Frequent traveler and food enthusiast. Always looking for the next best view and a great cup of coffee.",
+  avatar_url: "https://placehold.co/128x128/9CA3AF/FFFFFF?text=AD"
+};
+
+
 // --- HELPER FUNCTION ---
 export const formatCurrency = (amount: number, currency: string = "INR"): string => {
   return new Intl.NumberFormat('en-IN', { 
@@ -46,4 +68,3 @@ export const formatCurrency = (amount: number, currency: string = "INR"): string
     minimumFractionDigits: 2 
   }).format(amount);
 };
-

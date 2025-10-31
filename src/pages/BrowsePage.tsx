@@ -477,4 +477,3 @@ export const BrowsePage = () => {
 export default function App() {
   return <BrowsePage />;
 }
-

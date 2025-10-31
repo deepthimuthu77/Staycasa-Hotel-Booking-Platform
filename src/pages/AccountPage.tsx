@@ -1,36 +1,26 @@
 import React, { useState, ChangeEvent } from 'react';
 import { 
-  User, 
+  User as UserIcon, // Aliased to avoid name conflict
   Mail, 
   Phone, 
   BookText, 
-  UploadCloud, 
-  Trash2, 
   ShieldCheck, 
   Save, 
   ChevronLeft,
-  Camera
 } from 'lucide-react';
 
-// --- TYPE DEFINITIONS ---
-type UserProfile = {
-  id: string;
-  email: string;
-  full_name: string;
-  phone: string | null;
-  bio: string | null;
-  avatar_url: string | null;
-};
+// Import the reusable component from the components directory
+import { AvatarUploader } from '../components/AvatarUploader';
 
-// --- MOCK DATA ---
-export const mockUser: UserProfile = {
-  id: "u-1",
-  email: "anita.desai@example.com",
-  full_name: "Anita Desai",
-  phone: "+919876543210",
-  bio: "Frequent traveler and food enthusiast. Always looking for the next best view and a great cup of coffee.",
-  avatar_url: "https://placehold.co/128x128/9CA3AF/FFFFFF?text=AD"
-};
+// Import types and mock data from data.tsx
+import { UserProfile, mockUser } from '../data/data.tsx';
+
+// --- TYPE DEFINITIONS (REMOVED) ---
+// The UserProfile type is now imported from ../data/data
+
+// --- MOCK DATA (REMOVED) ---
+// The mockUser object is now imported from ../data/data
+
 
 // --- CHILD COMPONENT: Header ---
 const Header = () => (
@@ -44,68 +34,6 @@ const Header = () => (
     </div>
   </header>
 );
-
-// --- CHILD COMPONENT: AvatarUploader ---
-type AvatarUploaderProps = {
-  currentAvatar: string | null;
-  onAvatarChange: (file: File | null) => void;
-};
-
-export const AvatarUploader = ({ currentAvatar, onAvatarChange }: AvatarUploaderProps) => {
-  const [preview, setPreview] = useState<string | null>(currentAvatar);
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      onAvatarChange(file);
-    }
-  };
-
-  const handleRemove = () => {
-    setPreview(null);
-    onAvatarChange(null);
-    // In a real app, you might reset to a default avatar
-  };
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative group">
-        <img
-          src={preview || 'https://placehold.co/128x128/E2E8F0/A0AEC0?text=No+Photo'}
-          alt="Profile Avatar"
-          className="w-32 h-32 rounded-full object-cover border-4 border-gray-200 shadow-md"
-        />
-        <label
-          htmlFor="avatar-upload"
-          className="absolute inset-0 w-32 h-32 rounded-full bg-black bg-opacity-50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-        >
-          <Camera size={32} />
-        </label>
-        <input
-          type="file"
-          id="avatar-upload"
-          accept="image/png, image/jpeg, image/webp"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </div>
-      {preview && (
-        <button
-          onClick={handleRemove}
-          className="mt-3 text-sm text-red-600 hover:text-red-800 font-medium flex items-center gap-1"
-        >
-          <Trash2 size={14} />
-          Remove Photo
-        </button>
-      )}
-    </div>
-  );
-};
 
 // --- CHILD COMPONENT: FormInputRow ---
 type FormInputRowProps = {
@@ -152,38 +80,37 @@ const FormInputRow = ({ icon, label, name, value, onChange, type = 'text', disab
  * User profile page (with AvatarUploader).
  */
 export const AccountPage = () => {
+  // Use the imported mockUser as the initial state
   const [profile, setProfile] = useState<UserProfile>(mockUser);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setProfile(prev => ({ ...prev, [name]: value }));
   };
 
+  /**
+   * This function is passed to the reusable AvatarUploader component.
+   * It handles the "upload" logic and returns a boolean.
+   */
+  const handleAvatarUpload = async (file: File): Promise<boolean> => {
+    console.log("Uploading new avatar:", file.name);
+    
+    // --- MOCK UPLOAD ---
+    await new Promise(res => setTimeout(res, 1000));
+    
+    // Optimistically update the profile state with a local blob URL
+    const newAvatarUrl = URL.createObjectURL(file);
+    setProfile(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+
+    console.log("Upload complete (mock)");
+    return true; // Return true on success
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Saving profile:", profile);
-    
-    if (avatarFile) {
-      console.log("Uploading new avatar:", avatarFile.name);
-      // --- MOCK UPLOAD ---
-      // In a real app, this would call Supabase Storage:
-      // const { data, error } = await supabase.storage
-      //   .from('user-avatars')
-      //   .upload(`${profile.id}/${avatarFile.name}`, avatarFile, { upsert: true });
-      // if (data) {
-      //   setProfile(prev => ({ ...prev, avatar_url: data.path }));
-      // }
-      await new Promise(res => setTimeout(res, 1000));
-      console.log("Upload complete (mock)");
-    }
+    console.log("Saving profile (text fields):", profile);
     
     // In a real app, update the 'users' table in Supabase
-    // const { data, error } = await supabase
-    //   .from('users')
-    //   .update({ full_name: profile.full_name, phone: profile.phone, bio: profile.bio, avatar_url: profile.avatar_url })
-    //   .eq('id', profile.id);
-
     alert("Profile saved successfully! (Mock)");
   };
 
@@ -202,11 +129,16 @@ export const AccountPage = () => {
           <div className="lg:col-span-1">
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col items-center">
               <AvatarUploader
-                currentAvatar={profile.avatar_url}
-                onAvatarChange={setAvatarFile}
+                // The reusable component expects a 'user' prop
+                // We create it from our 'profile' state
+                user={{
+                  id: profile.id,
+                  email: profile.email,
+                  full_name: profile.full_name,
+                  avatar_url: profile.avatar_url,
+                }}
+                onAvatarChange={handleAvatarUpload}
               />
-              <h2 className="text-xl font-semibold text-gray-800 mt-4">{profile.full_name}</h2>
-              <p className="text-sm text-gray-500">{profile.email}</p>
             </div>
           </div>
 
@@ -216,7 +148,7 @@ export const AccountPage = () => {
               <h3 className="text-xl font-semibold text-gray-800 mb-4">Personal Details</h3>
               <div className="space-y-4">
                 <FormInputRow
-                  icon={<User />}
+                  icon={<UserIcon />}
                   label="Full Name"
                   name="full_name"
                   value={profile.full_name}

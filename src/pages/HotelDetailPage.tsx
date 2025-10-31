@@ -17,31 +17,17 @@ import {
   MessageSquare,
   Share2
 } from 'lucide-react';
-import { DayPicker } from 'react-day-picker';
-// Note: 'react-day-picker/dist/style.css' is needed for styling.
-// We'll add a minimal <style> block to make it work here.
+// Import the DayPicker styles needed by the reusable component
+import 'react-day-picker/dist/style.css';
 import { format, differenceInCalendarDays } from 'date-fns';
 
-// --- STYLES for React-Day-Picker ---
-// Added to make the component runnable
-const dayPickerStyles = `
-  .rdp {
-    --rdp-cell-size: 36px;
-    --rdp-accent-color: #2563eb;
-    margin: 0;
-  }
-  .rdp-day_selected {
-    background-color: #2563eb;
-    color: white;
-  }
-  .rdp-day_today {
-    font-weight: bold;
-    color: #2563eb;
-  }
-  .rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
-    background-color: #eff6ff;
-  }
-`;
+// Import the reusable DateRangePicker component
+import { DateRangePicker } from '../components/DateRangePicker';
+// Import the reusable formatCurrency helper
+import { formatCurrency } from '../data/data';
+
+// --- STYLES for React-Day-Picker (REMOVED) ---
+// No longer needed, as we import 'react-day-picker/dist/style.css'
 
 // --- TYPE DEFINITIONS ---
 export type Hotel = {
@@ -83,6 +69,8 @@ export type Review = {
   created_at: string;
 };
 
+// DateRange type is imported by the reusable component, but we
+// can keep it here for local state typing.
 export type DateRange = {
   from: Date | undefined;
   to: Date | undefined;
@@ -93,17 +81,11 @@ export type GuestCount = {
   children: number;
 };
 
-// --- HELPER FUNCTIONS ---
-export const formatCurrency = (amount: number, currency: string = "INR"): string => {
-  return new Intl.NumberFormat('en-IN', { 
-    style: 'currency', 
-    currency: currency, 
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
-};
+// --- HELPER FUNCTIONS (REMOVED) ---
+// formatCurrency is now imported from ../data/data
 
 // --- MOCK DATA ---
+// TODO: This data should also be moved to src/data/data.tsx
 export const mockHotelDetail: Hotel = {
   id: "h-1",
   name: "Seaside Panorama Hotel",
@@ -172,44 +154,8 @@ const Header = () => (
   </header>
 );
 
-// --- CHILD COMPONENT: DateRangePicker ---
-type DateRangePickerProps = { range: DateRange; onRangeChange: (range: DateRange) => void; };
-export const DateRangePicker = ({ range, onRangeChange }: DateRangePickerProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const handleDayClick = (day: Date) => {
-    let newRange: DateRange;
-    if (range.from && !range.to && day > range.from) {
-      newRange = { from: range.from, to: day };
-      setIsOpen(false);
-    } else {
-      newRange = { from: day, to: undefined };
-    }
-    onRangeChange(newRange);
-  };
-  return (
-    <div className="relative w-full">
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between w-full p-3 bg-white border border-gray-300 rounded-lg shadow-sm text-left"
-      >
-        <div className="flex items-center gap-2">
-          <Calendar size={18} className="text-gray-500" />
-          <div className="text-sm font-medium text-gray-800">
-            {range.from ? format(range.from, 'dd LLL') : 'Check-in'}
-            {' – '}
-            {range.to ? format(range.to, 'dd LLL') : 'Check-out'}
-          </div>
-        </div>
-      </button>
-      {isOpen && (
-        <div className="absolute z-20 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl -translate-x-1/2 left-1/2">
-          <DayPicker mode="range" selected={range} onDayClick={handleDayClick} numberOfMonths={1} disabled={{ before: new Date() }} />
-        </div>
-      )}
-    </div>
-  );
-};
+// --- CHILD COMPONENT: DateRangePicker (REMOVED) ---
+// We now import this from ../components/DateRangePicker
 
 // --- CHILD COMPONENT: GuestSelector ---
 type GuestSelectorProps = { count: GuestCount; onChange: (count: GuestCount) => void; };
@@ -290,7 +236,7 @@ const AmenityIcon = ({ amenity }: { amenity: string }) => {
     case 'gym': return <div className="flex items-center gap-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 10.1A1 1 0 0 1 3 9h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zm16 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1zM8 5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1z"/></svg><span>Gym</span></div>;
     case 'parking': return <div className="flex items-center gap-3"><ParkingCircle {...iconProps} /><span>Parking</span></div>;
     case 'spa': return <div className="flex items-center gap-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2Z"/><path d="M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z"/><path d="M12 12h.01"/></svg><span>Spa</span></div>;
-    case 'room_service': return <div className="flex items-center gap-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"/><path d="M7 8h10M7 12h10M7 16h10"/></svg><span>Room Service</span></div>;
+    case 'room_service': return <div className="flex items-center gap-3"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h20v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z"/><path d.tsx="M7 8h10M7 12h10M7 16h10"/></svg><span>Room Service</span></div>;
     default: return null;
   }
 };
@@ -314,7 +260,6 @@ export const HotelDetailPage = () => {
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      <style>{dayPickerStyles}</style>
       <Header />
 
       <main className="container mx-auto max-w-7xl p-4 mt-6">
@@ -405,7 +350,9 @@ export const HotelDetailPage = () => {
             <div className="sticky top-24 bg-white p-6 rounded-xl shadow-lg border border-gray-100">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Book your stay</h2>
               <div className="space-y-4">
+                {/* Use the imported component */}
                 <DateRangePicker range={dates} onRangeChange={setDates} />
+                
                 <GuestSelector count={guests} onChange={setGuests} />
                 <div>
                   <label className="text-sm font-semibold text-gray-700">Room Type</label>

@@ -8,9 +8,11 @@ type AuthOtpFlowProps = {
   onLoginSuccess: (token: string) => void;
 };
 
-// --- CHILD COMPONENT: AuthOtpFlow ---
+// --- CHILD COMPONENT: AuthOtpFlow (Redundant) ---
 /**
  * Handles the two-step email + OTP login flow.
+ * NOTE: This component is redundant. A reusable version
+ * exists in src/components/AuthOtpFlow.tsx.
  */
 export const AuthOtpFlow = ({ onLoginSuccess }: AuthOtpFlowProps) => {
   const [step, setStep] = useState<AuthStep>('email');
