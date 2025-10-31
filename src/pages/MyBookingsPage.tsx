@@ -13,118 +13,27 @@ import {
 } from 'lucide-react';
 import { format, differenceInCalendarDays, isPast, isFuture, isToday } from 'date-fns';
 
-// --- TYPE DEFINITIONS ---
-type BookingStatus = 'upcoming' | 'ongoing' | 'past' | 'cancelled';
+// Import types, data, and helpers from the central data file
+import { 
+  formatCurrency, 
+  mockBookings 
+} from '../data/data';
+import type { 
+  Booking, 
+  BookingStatus, 
+  HotelSnapshot, 
+  PriceBreakdown 
+} from '../data/data';
 
-type PriceBreakdown = {
-  subtotal: number;
-  taxes: number;
-  service_fee: number;
-  total: number;
-  currency: string;
-};
+// --- TYPE DEFINITIONS (REMOVED) ---
+// All types are now imported from ../data/data.tsx
 
-type HotelSnapshot = {
-  id: string;
-  name: string;
-  city: string;
-  thumbnail: string;
-  address: string;
-};
+// --- HELPER FUNCTIONS (REMOVED) ---
+// formatCurrency is now imported from ../data/data.tsx
 
-type Booking = {
-  id: string;
-  booking_reference: string;
-  user_id: string;
-  hotel: HotelSnapshot;
-  check_in: string; // ISO Date string
-  check_out: string; // ISO Date string
-  guests: { adults: number; children: number };
-  price_breakdown: PriceBreakdown;
-  status: 'confirmed' | 'cancelled';
-};
+// --- MOCK DATA (REMOVED) ---
+// mockBookings is now imported from ../data/data.tsx
 
-// --- HELPER FUNCTIONS ---
-export const formatCurrency = (amount: number, currency: string = "INR"): string => {
-  return new Intl.NumberFormat('en-IN', { 
-    style: 'currency', 
-    currency: currency, 
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
-};
-
-// --- MOCK DATA ---
-export const mockBookings: Booking[] = [
-  {
-    id: "b-1",
-    booking_reference: "PRO-20251120-A4F8",
-    user_id: "u-1",
-    hotel: {
-      id: "h-1",
-      name: "Seaside Panorama Hotel",
-      city: "Pondicherry",
-      thumbnail: "https://placehold.co/400x300/3498db/ffffff?text=Hotel+View",
-      address: "12 Beach Road, Pondicherry"
-    },
-    check_in: "2025-11-20T14:00:00Z",
-    check_out: "2025-11-23T11:00:00Z",
-    guests: { adults: 2, children: 0 },
-    price_breakdown: { subtotal: 21000, taxes: 3780, service_fee: 500, total: 25280, currency: "INR" },
-    status: 'confirmed',
-  },
-  {
-    id: "b-2",
-    booking_reference: "PRO-20251028-B9C1",
-    user_id: "u-1",
-    hotel: {
-      id: "h-2",
-      name: "Mountain Retreat",
-      city: "Manali",
-      thumbnail: "https://placehold.co/400x300/2ecc71/ffffff?text=Mountain+View",
-      address: "Old Manali, Manali"
-    },
-    check_in: "2025-10-28T14:00:00Z", // Assuming today is Oct 31, this is ongoing
-    check_out: "2025-11-02T11:00:00Z",
-    guests: { adults: 2, children: 1 },
-    price_breakdown: { subtotal: 35000, taxes: 6300, service_fee: 500, total: 41800, currency: "INR" },
-    status: 'confirmed',
-  },
-  {
-    id: "b-3",
-    booking_reference: "PRO-20250901-C3D7",
-    user_id: "u-1",
-    hotel: {
-      id: "h-3",
-      name: "City Center Inn",
-      city: "Bangalore",
-      thumbnail: "https://placehold.co/400x300/e74c3c/ffffff?text=City+Hotel",
-      address: "MG Road, Bangalore"
-    },
-    check_in: "2025-09-01T14:00:00Z",
-    check_out: "2025-09-03T11:00:00Z",
-    guests: { adults: 1, children: 0 },
-    price_breakdown: { subtotal: 9000, taxes: 1620, service_fee: 300, total: 10920, currency: "INR" },
-    status: 'confirmed', // This is a "past" booking
-  },
-  {
-    id: "b-4",
-    booking_reference: "PRO-20251201-D4E9",
-    user_id: "u-1",
-    hotel: {
-      id: "h-4",
-      name: "Goa Beachfront Villa",
-      city: "Goa",
-      thumbnail: "https://placehold.co/400x300/f39c12/ffffff?text=Goa+Villa",
-      address: "Baga Beach, Goa"
-    },
-    check_in: "2025-12-01T14:00:00Z",
-    check_out: "2025-12-05T11:00:00Z",
-    guests: { adults: 4, children: 0 },
-    price_breakdown: { subtotal: 48000, taxes: 8640, service_fee: 1000, total: 57640, currency: "INR" },
-    status: 'cancelled',
-  },
-];
 
 // --- CHILD COMPONENT: Header ---
 const Header = () => (
@@ -200,7 +109,8 @@ const BookingCard = ({ booking, statusType }: BookingCardProps) => {
             <div>
               <p className="text-xs text-gray-500">Total Price ({nights} nights)</p>
               <p className="text-xl font-bold text-blue-600">
-                {formatCurrency(price_breakdown.total, price_breakdown.currency)}
+                {/* Use the imported formatCurrency helper */}
+                {formatCurrency(price_breakdown.total, price_breakdown.currency, 0)}
               </p>
             </div>
             <p className="text-xs text-gray-400">Ref: {booking_reference}</p>
@@ -262,6 +172,7 @@ export const MyBookingsPage = () => {
     return 'past'; // Default fallback
   };
 
+  // Use the imported mockBookings
   const filteredBookings = mockBookings.filter(b => getBookingStatus(b) === activeTab);
 
   const renderBookings = () => {

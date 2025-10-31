@@ -13,102 +13,24 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
-// --- TYPE DEFINITIONS ---
-type HotelSnapshot = {
-  id: string;
-  name: string;
-  city: string;
-  thumbnail: string;
-};
+// Import types and data from the central data file
+import {
+  mockHotelsMap,
+  mockAccommodations,
+  mockAccommodationReviews
+} from '../data/data';
+import type {
+  HotelSnapshot,
+  Accommodation,
+  Review
+} from '../data/data';
 
-type Accommodation = {
-  id: string;
-  user_id: string;
-  hotel_id: string;
-  last_visited_at: string; // ISO Date string
-  has_reviewed: boolean;
-  review_id: string | null;
-};
 
-type Review = {
-  id: string;
-  hotel_id: string;
-  user_id: string;
-  rating: number;
-  title: string;
-  comment: string;
-};
+// --- TYPE DEFINITIONS (REMOVED) ---
+// All types are now imported from ../data/data.tsx
 
-// --- MOCK DATA ---
-// We need a map of hotels for easy lookup
-const mockHotelsMap: Record<string, HotelSnapshot> = {
-  "h-1": {
-    id: "h-1",
-    name: "Seaside Panorama Hotel",
-    city: "Pondicherry",
-    thumbnail: "https://placehold.co/400x300/3498db/ffffff?text=Hotel+View"
-  },
-  "h-2": {
-    id: "h-2",
-    name: "Mountain Retreat",
-    city: "Manali",
-    thumbnail: "https://placehold.co/400x300/2ecc71/ffffff?text=Mountain+View"
-  },
-  "h-3": {
-    id: "h-3",
-    name: "City Center Inn",
-    city: "Bangalore",
-    thumbnail: "https://placehold.co/400x300/e74c3c/ffffff?text=City+Hotel"
-  }
-};
-
-// Mock data for accommodations (derived from past bookings)
-export const mockAccommodations: Accommodation[] = [
-  {
-    id: "acc-1",
-    user_id: "u-1",
-    hotel_id: "h-3",
-    last_visited_at: "2025-09-03T11:00:00Z",
-    has_reviewed: true,
-    review_id: "r-1",
-  },
-  {
-    id: "acc-2",
-    user_id: "u-1",
-    hotel_id: "h-1",
-    last_visited_at: "2025-08-15T11:00:00Z",
-    has_reviewed: false,
-    review_id: null,
-  },
-  {
-    id: "acc-3",
-    user_id: "u-1",
-    hotel_id: "h-2",
-    last_visited_at: "2025-07-01T11:00:00Z",
-    has_reviewed: true,
-    review_id: "r-2",
-  },
-];
-
-// Mock data for existing reviews
-const mockReviews: Record<string, Review> = {
-  "r-1": {
-    id: "r-1",
-    hotel_id: "h-3",
-    user_id: "u-1",
-    rating: 4,
-    title: "Great location",
-    comment: "Very convenient for business trips. Clean rooms and good service."
-  },
-  "r-2": {
-    id: "r-2",
-    hotel_id: "h-2",
-    user_id: "u-1",
-    rating: 5,
-    title: "Breathtaking views!",
-    comment: "The Mountain Retreat was absolutely stunning. Woke up to the Himalayas. Unforgettable."
-  }
-};
+// --- MOCK DATA (REMOVED) ---
+// All mock data is now imported from ../data/data.tsx
 
 
 // --- CHILD COMPONENT: Header ---
@@ -254,7 +176,8 @@ type AccommodationCardProps = {
 
 const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardProps) => {
   const hotel = mockHotelsMap[accommodation.hotel_id];
-  const existingReview = accommodation.review_id ? mockReviews[accommodation.review_id] : null;
+  // Use the imported mockAccommodationReviews
+  const existingReview = accommodation.review_id ? mockAccommodationReviews[accommodation.review_id] : null;
 
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex flex-col md:flex-row">
@@ -311,6 +234,7 @@ export const MyAccommodationsPage = () => {
   const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   
   // State for accommodations, to simulate review submission
+  // Use the imported mockAccommodations
   const [accommodations, setAccommodations] = useState(mockAccommodations);
 
   const handleOpenReviewModal = (hotel: HotelSnapshot, review: Review | null) => {
@@ -340,7 +264,8 @@ export const MyAccommodationsPage = () => {
       )
     );
     // Add to mock reviews (for "Edit" logic)
-    mockReviews['new-r-id'] = { ...review, id: 'new-r-id', user_id: 'u-1' };
+    // Use the imported mockAccommodationReviews
+    mockAccommodationReviews['new-r-id'] = { ...review, id: 'new-r-id', user_id: 'u-1' };
     
     handleCloseReviewModal();
     alert("Review submitted successfully! (Mock)");

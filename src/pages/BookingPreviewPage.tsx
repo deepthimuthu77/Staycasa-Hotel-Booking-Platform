@@ -5,38 +5,24 @@ import {
   Calendar, 
   Users, 
   Moon, 
-  ChevronUp, 
-  ChevronDown,
   Sparkles,
-  ShieldCheck,
-  CheckCircle,
-  X,
-  QrCode,
-  Smartphone,
-  Loader2
+  ShieldCheck
 } from 'lucide-react';
 import { format, differenceInCalendarDays, addDays } from 'date-fns';
 
+// Import reusable components
+import { BookingSummary } from '../components/BookingSummary';
+import { MockPaymentModal } from '../components/MockPaymentModal';
+
+// Import types and helpers from the central data file
+import { formatCurrency } from '../data/data';
+import type { PriceBreakdown, HotelSnapshot } from '../data/data';
+// We also need the 'Booking' type for the modal prop
+import type { Booking } from '../data/data';
+
+
 // --- TYPE DEFINITIONS ---
-type PriceBreakdown = {
-  nights: number;
-  base_price_per_night: number;
-  subtotal: number;
-  seasonal_mod: number;
-  taxes: number;
-  service_fee: number;
-  total: number;
-  currency: string;
-};
-
-type HotelSnapshot = {
-  id: string;
-  name: string;
-  address: string;
-  thumbnail: string;
-  cancellation_policy: string;
-};
-
+// This type is specific to this page, so it stays
 type BookingPreview = {
   hotel: HotelSnapshot;
   check_in: Date;
@@ -46,25 +32,19 @@ type BookingPreview = {
   room: { name: string; };
 };
 
-// --- HELPER FUNCTIONS ---
-export const formatCurrency = (amount: number, currency: string = "INR"): string => {
-  return new Intl.NumberFormat('en-IN', { 
-    style: 'currency', 
-    currency: currency, 
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(amount);
-};
+// --- HELPER FUNCTIONS (REMOVED) ---
+// formatCurrency is now imported from ../data/data.tsx
 
 // --- MOCK DATA ---
+// This mock data is specific to this page's state, so it stays
 const today = new Date();
 export const mockBookingPreview: BookingPreview = {
   hotel: {
     id: "h-1",
     name: "Seaside Panorama Hotel",
     address: "12 Beach Road, Pondicherry",
+    city: "Pondicherry",
     thumbnail: "https://placehold.co/400x300/3498db/ffffff?text=Hotel+View",
-    cancellation_policy: "Free cancellation before 48 hours of check-in."
   },
   check_in: addDays(today, 10),
   check_out: addDays(today, 13),
@@ -95,192 +75,11 @@ const Header = () => (
   </header>
 );
 
-// --- CHILD COMPONENT: BookingSummary ---
-type BookingSummaryProps = {
-  priceBreakdown: PriceBreakdown;
-  onBookNow: () => void;
-};
+// --- CHILD COMPONENT: BookingSummary (REMOVED) ---
+// This is now imported from ../components/BookingSummary.tsx
 
-export const BookingSummary = ({ priceBreakdown, onBookNow }: BookingSummaryProps) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const { nights, subtotal, seasonal_mod, taxes, service_fee, total, currency, base_price_per_night } = priceBreakdown;
-
-  const formattedTotal = formatCurrency(total, currency);
-
-  return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6 sticky top-28">
-      <h3 className="text-xl font-bold text-gray-800 mb-4">Price Summary</h3>
-      
-      <div className="space-y-2 text-sm text-gray-700">
-        <div className="flex justify-between">
-          <button 
-            onClick={() => setIsExpanded(!isExpanded)} 
-            className="flex items-center text-blue-600 hover:underline"
-          >
-            {formatCurrency(base_price_per_night, currency)} x {nights} nights
-            {isExpanded ? <ChevronUp size={16} className="ml-1" /> : <ChevronDown size={16} className="ml-1" />}
-          </button>
-          <span>{formatCurrency(subtotal, currency)}</span>
-        </div>
-        
-        {isExpanded && (
-          <div className="pl-4 space-y-1 text-xs text-gray-500 border-l-2 border-gray-200">
-            <div className="flex justify-between">
-              <span>Seasonal price adjustment</span>
-              <span>+ {formatCurrency(seasonal_mod, currency)}</span>
-            </div>
-          </div>
-        )}
-        
-        <div className="flex justify-between">
-          <span>Taxes & fees</span>
-          <span>{formatCurrency(taxes + service_fee, currency)}</span>
-        </div>
-      </div>
-      
-      <div className="border-t border-gray-200 my-4"></div>
-      
-      <div className="flex justify-between items-center mb-5">
-        <span className="text-lg font-bold text-gray-900">Total</span>
-        <span className="text-2xl font-bold text-blue-600">{formattedTotal}</span>
-      </div>
-      
-      <button
-        onClick={onBookNow}
-        className="w-full bg-blue-600 text-white text-lg font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300"
-      >
-        Book Now
-      </button>
-      <p className="text-xs text-gray-500 mt-3 text-center">
-        You won't be charged yet. This is a mock payment.
-      </p>
-    </div>
-  );
-};
-
-
-// --- CHILD COMPONENT: MockPaymentModal ---
-type MockPaymentModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void; // Renamed from onPaymentSuccess
-  amount: string;
-};
-
-export const MockPaymentModal = ({ isOpen, onClose, onConfirm, amount }: MockPaymentModalProps) => {
-  type Tab = 'qr' | 'app';
-  const [activeTab, setActiveTab] = useState<Tab>('qr');
-  const [paymentState, setPaymentState] = useState<'idle' | 'pending' | 'confirmed'>('idle');
-
-  const handlePayment = () => {
-    setPaymentState('pending');
-    setTimeout(() => {
-      setPaymentState('confirmed');
-      setTimeout(() => {
-        onConfirm(); // Call the success callback
-        // Reset state for next time
-        setPaymentState('idle');
-        setActiveTab('qr');
-      }, 1500); // Show success checkmark for 1.5s
-    }, 2500); // Simulate 2.5s payment processing
-  };
-  
-  const handleClose = () => {
-    if (paymentState === 'pending') return; // Don't close while processing
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md relative overflow-hidden">
-        <button
-          onClick={handleClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-          disabled={paymentState === 'pending'}
-        >
-          <X size={24} />
-        </button>
-        
-        {paymentState === 'idle' && (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">Complete Payment</h2>
-            <p className="text-center text-3xl font-bold text-blue-600 mb-4">{amount}</p>
-
-            <div className="flex mb-4 bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab('qr')}
-                className={`flex-1 py-2 px-4 rounded-md font-semibold text-sm flex items-center justify-center gap-2 ${activeTab === 'qr' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}
-              >
-                <QrCode size={18} />
-                Scan QR
-              </button>
-              <button
-                onClick={() => setActiveTab('app')}
-                className={`flex-1 py-2 px-4 rounded-md font-semibold text-sm flex items-center justify-center gap-2 ${activeTab === 'app' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}
-              >
-                <Smartphone size={18} />
-                Pay with App
-              </button>
-            </div>
-
-            {/* QR Code Tab */}
-            {activeTab === 'qr' && (
-              <div className="flex flex-col items-center">
-                <img 
-                  src="https://placehold.co/256x256/000000/FFFFFF?text=Mock+QR+Code" 
-                  alt="Mock QR Code" 
-                  className="w-64 h-64 rounded-lg border-4 border-gray-200"
-                />
-                <p className="text-sm text-gray-500 mt-3 text-center">Scan this code with your payment app.</p>
-              </div>
-            )}
-            
-            {/* App Tab */}
-            {activeTab === 'app' && (
-              <div className="flex flex-col items-center space-y-3">
-                <p className="text-sm text-gray-500 text-center">Select your mock payment app:</p>
-                <button className="w-full flex items-center gap-3 p-3 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  <img src="https://placehold.co/40x40/3498db/FFFFFF?text=P" alt="App" className="rounded-full" />
-                  <span className="font-semibold">MockPay</span>
-                </button>
-                <button className="w-full flex items-center gap-3 p-3 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  <img src="https://placehold.co/40x40/2ecc71/FFFFFF?text=G" alt="App" className="rounded-full" />
-                  <span className="font-semibold">GeminiPay</span>
-                </button>
-              </div>
-            )}
-            
-            <button
-              onClick={handlePayment}
-              className="w-full bg-green-600 text-white text-lg font-bold py-3 rounded-lg shadow-md hover:bg-green-700 transition-colors duration-300 mt-6"
-            >
-              Simulate Successful Payment
-            </button>
-          </div>
-        )}
-        
-        {paymentState === 'pending' && (
-          <div className="p-12 flex flex-col items-center justify-center h-80">
-            <Loader2 size={64} className="text-blue-600 animate-spin" />
-            <h3 className="text-xl font-semibold text-gray-700 mt-4">Processing Payment...</h3>
-            <p className="text-gray-500">Please wait.</p>
-          </div>
-        )}
-        
-        {paymentState === 'confirmed' && (
-          <div className="p-12 flex flex-col items-center justify-center h-80 bg-green-50">
-            <CheckCircle size={64} className="text-green-600" />
-            <h3 className="text-xl font-semibold text-green-700 mt-4">Payment Confirmed!</h3>
-            <p className="text-gray-500">Redirecting you...</p>
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
-};
+// --- CHILD COMPONENT: MockPaymentModal (REMOVED) ---
+// This is now imported from ../components/MockPaymentModal.tsx
 
 
 // --- PAGE COMPONENT: BookingPreviewPage ---
@@ -302,8 +101,32 @@ export const BookingPreviewPage = () => {
     // In a real app with a router:
     // navigate(`/booking/confirmation/PRO-MOCK-REF-123`);
   };
+  
+  const handlePaymentFailure = () => {
+    setIsModalOpen(false);
+    alert("Payment Failed. Please try again.");
+  };
 
   const nights = differenceInCalendarDays(booking.check_out, booking.check_in);
+
+  // We need to create a minimal 'Booking' object for the modal prop
+  const bookingForModal: Pick<Booking, 'id' | 'booking_reference' | 'price_breakdown'> = {
+    id: 'preview-123',
+    booking_reference: 'PRO-PREVIEW-XYZ',
+    price_breakdown: {
+      // The modal only needs total and currency
+      total: booking.price_breakdown.total,
+      currency: booking.price_breakdown.currency,
+      // Pass dummy values for the rest
+      nights: booking.price_breakdown.nights,
+      base_price_per_night: booking.price_breakdown.base_price_per_night,
+      subtotal: booking.price_breakdown.subtotal,
+      seasonal_mod: booking.price_breakdown.seasonal_mod,
+      taxes: booking.price_breakdown.taxes,
+      service_fee: booking.price_breakdown.service_fee,
+    }
+  };
+
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -366,7 +189,11 @@ export const BookingPreviewPage = () => {
               <h3 className="text-xl font-semibold text-gray-800 mb-3">Cancellation Policy</h3>
               <p className="text-sm text-gray-600 flex items-start gap-2">
                 <ShieldCheck size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
-                <span>{booking.hotel.cancellation_policy}</span>
+                <span>
+                  {/* This property is not in the type, so hard-coding it for now. 
+                      You could add `cancellation_policy` to `HotelSnapshot` in data.tsx */}
+                  Free cancellation before 48 hours of check-in.
+                </span>
               </p>
             </div>
             
@@ -393,6 +220,7 @@ export const BookingPreviewPage = () => {
           
           {/* --- Right Column (Price Summary) --- */}
           <div className="lg:col-span-1">
+            {/* Use the imported BookingSummary component */}
             <BookingSummary 
               priceBreakdown={booking.price_breakdown}
               onBookNow={handleBookNow}
@@ -401,11 +229,15 @@ export const BookingPreviewPage = () => {
         </div>
       </main>
 
+      {/* This is the corrected component call.
+        It now passes the props required by src/components/MockPaymentModal.tsx
+      */}
       <MockPaymentModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConfirm={handlePaymentSuccess}
-        amount={formatCurrency(booking.price_breakdown.total, booking.price_breakdown.currency)}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentFailure={handlePaymentFailure}
+        booking={bookingForModal as Booking} // Pass the constructed booking object
       />
     </div>
   );

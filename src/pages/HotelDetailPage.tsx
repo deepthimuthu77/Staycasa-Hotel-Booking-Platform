@@ -23,123 +23,28 @@ import { format, differenceInCalendarDays } from 'date-fns';
 
 // Import the reusable DateRangePicker component
 import { DateRangePicker } from '../components/DateRangePicker';
-// Import the reusable formatCurrency helper
-import { formatCurrency } from '../data/data';
 
-// --- STYLES for React-Day-Picker (REMOVED) ---
-// No longer needed, as we import 'react-day-picker/dist/style.css'
+// Import types, data, and helpers from the central data file
+import { 
+  formatCurrency, 
+  mockHotelDetail, 
+  mockReviews 
+} from '../data/data';
+import type { 
+  Hotel, 
+  Room, 
+  Review, 
+  DateRange, 
+  GuestCount 
+} from '../data/data';
 
-// --- TYPE DEFINITIONS ---
-export type Hotel = {
-  id: string;
-  name: string;
-  slug: string;
-  address: { street: string; city: string; country: string; zip: string; lat: number; lng: number };
-  stars: number;
-  rating: number;
-  description: string;
-  amenities: string[];
-  policies: { checkIn: string; checkOut: string; cancellation: string; };
-  gallery: string[];
-  rooms: Room[];
-  base_price: number;
-  currency: string;
-};
 
-export type Room = {
-  id: string;
-  name: string;
-  description: string;
-  capacity: number;
-  bed_type: string;
-  base_price_modifier: number; // e.g., 1.2 for 20% more than hotel base
-  amenities: string[];
-  photos: string[];
-};
+// --- TYPE DEFINITIONS (REMOVED) ---
+// All types are now imported from ../data/data.tsx
 
-export type Review = {
-  id: string;
-  user_id: string;
-  user_name: string;
-  user_avatar: string;
-  rating: number;
-  title: string;
-  comment: string;
-  photos: string[];
-  created_at: string;
-};
+// --- MOCK DATA (REMOVED) ---
+// All mock data is now imported from ../data/data.tsx
 
-// DateRange type is imported by the reusable component, but we
-// can keep it here for local state typing.
-export type DateRange = {
-  from: Date | undefined;
-  to: Date | undefined;
-};
-
-export type GuestCount = {
-  adults: number;
-  children: number;
-};
-
-// --- HELPER FUNCTIONS (REMOVED) ---
-// formatCurrency is now imported from ../data/data
-
-// --- MOCK DATA ---
-// TODO: This data should also be moved to src/data/data.tsx
-export const mockHotelDetail: Hotel = {
-  id: "h-1",
-  name: "Seaside Panorama Hotel",
-  slug: "seaside-panorama-hotel",
-  address: { street: "12 Beach Road", city: "Pondicherry", country: "India", zip: "605001", lat: 11.926, lng: 79.8083 },
-  stars: 5,
-  rating: 4.8,
-  description: "Experience breathtaking ocean views and unparalleled comfort in our 5-star resort. Located on the main promenade, the Seaside Panorama Hotel offers luxury rooms, a rooftop infinity pool, and world-class dining. Perfect for both leisure and business travelers seeking an unforgettable stay.",
-  amenities: ["wifi", "pool", "ac", "breakfast", "gym", "parking", "spa", "room_service"],
-  policies: {
-    checkIn: "14:00",
-    checkOut: "11:00",
-    cancellation: "Free cancellation up to 48 hours before check-in. 50% charge if cancelled within 48 hours. No refund for no-shows."
-  },
-  gallery: [
-    "https://placehold.co/800x600/3498db/ffffff?text=Main+View",
-    "https://placehold.co/400x300/2ecc71/ffffff?text=Poolside",
-    "https://placehold.co/400x300/e74c3c/ffffff?text=Lobby",
-    "https://placehold.co/400x300/f39c12/ffffff?text=Deluxe+Room",
-    "https://placehold.co/400x300/9b59b6/ffffff?text=Restaurant",
-  ],
-  rooms: [
-    { id: "r-1", name: "Deluxe Ocean View", description: "King bed with balcony.", capacity: 2, bed_type: "King", base_price_modifier: 1.0, amenities: ["minibar", "balcony"], photos: [] },
-    { id: "r-2", name: "Executive Suite", description: "King bed, separate living area.", capacity: 3, bed_type: "King", base_price_modifier: 1.5, amenities: ["minibar", "balcony", "living_room"], photos: [] },
-    { id: "r-3", name: "Family Room", description: "Two queen beds.", capacity: 4, bed_type: "Queen", base_price_modifier: 1.3, amenities: ["minibar"], photos: [] },
-  ],
-  base_price: 7999,
-  currency: "INR",
-};
-
-export const mockReviews: Review[] = [
-  {
-    id: "rev-1",
-    user_id: "u-1",
-    user_name: "Anita Desai",
-    user_avatar: "https://placehold.co/40x40/9CA3AF/FFFFFF?text=AD",
-    rating: 5,
-    title: "Absolutely stunning!",
-    comment: "The view was incredible, and the service was top-notch. The infinity pool is a must-see. We will definitely be back.",
-    photos: ["https://placehold.co/100x100/3498db/ffffff?text=View"],
-    created_at: "2025-10-15T09:30:00Z"
-  },
-  {
-    id: "rev-2",
-    user_id: "u-2",
-    user_name: "Rohan Gupta",
-    user_avatar: "https://placehold.co/40x40/2ECC71/FFFFFF?text=RG",
-    rating: 4,
-    title: "Great location, good food",
-    comment: "Very convenient location on Beach Road. The breakfast spread was fantastic. Room was clean, but a bit smaller than expected.",
-    photos: [],
-    created_at: "2025-10-12T14:45:00Z"
-  }
-];
 
 // --- CHILD COMPONENT: Header ---
 const Header = () => (
@@ -153,9 +58,6 @@ const Header = () => (
     </div>
   </header>
 );
-
-// --- CHILD COMPONENT: DateRangePicker (REMOVED) ---
-// We now import this from ../components/DateRangePicker
 
 // --- CHILD COMPONENT: GuestSelector ---
 type GuestSelectorProps = { count: GuestCount; onChange: (count: GuestCount) => void; };
@@ -246,13 +148,15 @@ const AmenityIcon = ({ amenity }: { amenity: string }) => {
  * Details of one specific hotel.
  */
 export const HotelDetailPage = () => {
+  // The component now uses the imported mockHotelDetail
   const [hotel] = useState<Hotel>(mockHotelDetail);
   const [dates, setDates] = useState<DateRange>({ from: undefined, to: undefined });
   const [guests, setGuests] = useState<GuestCount>({ adults: 2, children: 0 });
-  const [selectedRoom, setSelectedRoom] = useState<Room>(hotel.rooms[0]);
+  const [selectedRoom, setSelectedRoom] = useState<Room>(hotel.rooms![0]); // Added '!' to assert rooms is not null for detail page
 
   const nights = (dates.from && dates.to) ? differenceInCalendarDays(dates.to, dates.from) : 0;
-  const basePrice = hotel.base_price * selectedRoom.base_price_modifier;
+  // Use min_price (renamed in data.tsx) instead of base_price
+  const basePrice = hotel.min_price * selectedRoom.base_price_modifier;
   const subtotal = basePrice * nights;
   const taxes = subtotal * 0.18; // 18% tax
   const fees = 500; // Flat service fee
@@ -300,6 +204,7 @@ export const HotelDetailPage = () => {
                   <Star size={14} fill="white" />
                   <span className="font-bold">{hotel.rating.toFixed(1)}</span>
                 </div>
+                {/* Use the imported mockReviews */}
                 <span className="text-sm text-gray-600">({mockReviews.length} reviews)</span>
               </div>
             </div>
@@ -323,13 +228,14 @@ export const HotelDetailPage = () => {
             {/* Reviews */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">Reviews</h3>
+              {/* Use the imported mockReviews */}
               {mockReviews.map(review => (
                 <div key={review.id} className="border-b border-gray-200 pb-4 mb-4 last:border-b-0 last:mb-0">
                   <div className="flex items-center mb-2">
                     <img src={review.user_avatar} alt={review.user_name} className="w-10 h-10 rounded-full" />
                     <div className="ml-3">
                       <p className="font-semibold text-gray-800">{review.user_name}</p>
-                      <p className="text-xs text-gray-500">{format(new Date(review.created_at), 'dd MMM yyyy')}</p>
+                      <p className="text-xs text-gray-500">{format(new Date(review.created_at!), 'dd MMM yyyy')}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-yellow-500 mb-1">
@@ -358,10 +264,10 @@ export const HotelDetailPage = () => {
                   <label className="text-sm font-semibold text-gray-700">Room Type</label>
                   <select 
                     value={selectedRoom.id}
-                    onChange={(e) => setSelectedRoom(hotel.rooms.find(r => r.id === e.target.value) || hotel.rooms[0])}
+                    onChange={(e) => setSelectedRoom(hotel.rooms!.find(r => r.id === e.target.value) || hotel.rooms![0])}
                     className="w-full p-3 mt-1 border border-gray-300 rounded-lg shadow-sm"
                   >
-                    {hotel.rooms.map(room => (
+                    {hotel.rooms!.map(room => (
                       <option key={room.id} value={room.id}>
                         {room.name} (Max {room.capacity} guests)
                       </option>
@@ -375,20 +281,21 @@ export const HotelDetailPage = () => {
                     <h4 className="text-lg font-semibold text-gray-800 mb-2">Price Breakdown</h4>
                     <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">{formatCurrency(basePrice, hotel.currency)} x {nights} night(s)</span>
-                        <span className="text-gray-800">{formatCurrency(subtotal, hotel.currency)}</span>
+                        {/* Use the imported formatCurrency */}
+                        <span className="text-gray-600">{formatCurrency(basePrice, hotel.currency, 0)} x {nights} night(s)</span>
+                        <span className="text-gray-800">{formatCurrency(subtotal, hotel.currency, 0)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Taxes (18%)</span>
-                        <span className="text-gray-800">{formatCurrency(taxes, hotel.currency)}</span>
+                        <span className="text-gray-800">{formatCurrency(taxes, hotel.currency, 0)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Service Fee</span>
-                        <span className="text-gray-800">{formatCurrency(fees, hotel.currency)}</span>
+                        <span className="text-gray-800">{formatCurrency(fees, hotel.currency, 0)}</span>
                       </div>
                       <div className="flex justify-between items-center pt-2 mt-2 border-t border-dashed">
                         <span className="text-lg font-bold text-gray-900">Total</span>
-                        <span className="text-xl font-bold text-blue-600">{formatCurrency(total, hotel.currency)}</span>
+                        <span className="text-xl font-bold text-blue-600">{formatCurrency(total, hotel.currency, 0)}</span>
                       </div>
                     </div>
                   </div>

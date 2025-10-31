@@ -8,7 +8,7 @@ import {
   ParkingCircle 
 } from 'lucide-react';
 import type { Hotel } from '../data/data.tsx';
-import { mockHotel, formatCurrency } from '../data/data.tsx'; 
+import { mockHotelList, formatCurrency } from '../data/data.tsx'; 
 
 // --- TYPE DEFINITIONS ---
 // 'Hotel' type is imported from './data/data.tsx'
@@ -155,7 +155,7 @@ export default function App() {
   return (
     <div className="bg-gray-100 p-8 min-h-screen">
       <div className="max-w-sm mx-auto">
-        <HotelCard hotel={mockHotel} onClick={handleCardClick} />
+        <HotelCard hotel={mockHotelList[0]} onClick={handleCardClick} />
       </div>
     </div>
   );
