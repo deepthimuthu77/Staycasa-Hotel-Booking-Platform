@@ -7,7 +7,8 @@ import {
   Wind,
   ParkingCircle 
 } from 'lucide-react';
-import { Hotel, mockHotel, formatCurrency } from '../data/data.tsx'; 
+import type { Hotel } from '../data/data.tsx';
+import { mockHotel, formatCurrency } from '../data/data.tsx'; 
 
 // --- TYPE DEFINITIONS ---
 // 'Hotel' type is imported from './data/data.tsx'
@@ -44,20 +45,42 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   } = hotel;
 
   // Helper to get amenities icons
-  const getAmenityIcon = (amenity: string) => {
-    switch (amenity) {
-      case 'wifi':
-        return <Wifi size={16} key="wifi" title="Free WiFi" />;
-      case 'breakfast':
-        return <Utensils size={16} key="breakfast" title="Breakfast Included" />;
-      case 'pool':
-        return <ParkingCircle size={16} key="pool" title="Swimming Pool" />; // Using a placeholder icon
-      case 'ac':
-        return <Wind size={16} key="ac" title="Air Conditioning" />;
-      default:
-        return null;
-    }
+ const getAmenityIcon = (amenity: string) => {
+      switch (amenity) {
+        case 'wifi':
+          return (
+            <span key="wifi" title="Free WiFi">
+              <Wifi size={16} />
+            </span>
+          );
+
+        case 'breakfast':
+          return (
+            <span key="breakfast" title="Breakfast Included">
+              <Utensils size={16} />
+            </span>
+          );
+
+        case 'pool':
+          return (
+            <span key="pool" title="Swimming Pool">
+              <ParkingCircle size={16} />
+            </span>
+          );
+
+        case 'ac':
+          return (
+            <span key="ac" title="Air Conditioning">
+              <Wind size={16} />
+            </span>
+          );
+
+        default:
+          return null;
+      }
   };
+
+
 
   return (
     <div 

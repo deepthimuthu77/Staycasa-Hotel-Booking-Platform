@@ -153,14 +153,74 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   const { name, city, rating, stars, min_price, currency, thumbnail, amenities, is_featured } = hotel;
   const getAmenityIcon = (amenity: string) => {
     switch (amenity) {
-      case 'wifi': return <Wifi size={16} key="wifi" title="Free WiFi" />;
-      case 'breakfast': return <Utensils size={16} key="breakfast" title="Breakfast Included" />;
-      case 'pool': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10 10 10 0 0 0-10-10zm0 0v5m0 5a5 5 0 1 0 5 5 5 5 0 0 0-5-5zm0 0v5"/></svg>; // Placeholder pool icon
-      case 'ac': return <Wind size={16} key="ac" title="Air Conditioning" />;
-      case 'gym': return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 10.1A1 1 0 0 1 3 9h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zm16 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1zM8 5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1z"/></svg>; // Placeholder gym icon
-      case 'parking': return <ParkingCircle size={16} key="parking" title="Parking" />;
-      default: return null;
-    }
+        case 'wifi':
+          return (
+            <span key="wifi" title="Free WiFi">
+              <Wifi size={16} />
+            </span>
+          );
+
+        case 'breakfast':
+          return (
+            <span key="breakfast" title="Breakfast Included">
+              <Utensils size={16} />
+            </span>
+          );
+
+        case 'pool':
+          return (
+            <span key="pool" title="Swimming Pool">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 2a10 10 0 1 0 10 10 10 10 0 0 0-10-10zm0 0v5m0 5a5 5 0 1 0 5 5 5 5 0 0 0-5-5zm0 0v5" />
+              </svg>
+            </span>
+          );
+
+        case 'ac':
+          return (
+            <span key="ac" title="Air Conditioning">
+              <Wind size={16} />
+            </span>
+          );
+
+        case 'gym':
+          return (
+            <span key="gym" title="Gym">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2 10.1A1 1 0 0 1 3 9h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zm16 0a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1zM8 5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1z" />
+              </svg>
+            </span>
+          );
+
+        case 'parking':
+          return (
+            <span key="parking" title="Parking">
+              <ParkingCircle size={16} />
+            </span>
+          );
+
+        default:
+          return null;
+      }
+
   };
   return (
     <div 

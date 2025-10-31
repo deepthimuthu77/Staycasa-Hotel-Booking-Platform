@@ -1,4 +1,6 @@
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState } from 'react';
+import type { LucideProps } from "lucide-react";
+
 import { 
   User as UserIcon, // Aliased to avoid name conflict
   Mail, 
@@ -13,7 +15,8 @@ import {
 import { AvatarUploader } from '../components/AvatarUploader';
 
 // Import types and mock data from data.tsx
-import { UserProfile, mockUser } from '../data/data.tsx';
+import type { UserProfile } from '../data/data.tsx';
+import { mockUser } from '../data/data.tsx';
 
 // --- TYPE DEFINITIONS (REMOVED) ---
 // The UserProfile type is now imported from ../data/data
@@ -56,7 +59,8 @@ const FormInputRow = ({ icon, label, name, value, onChange, type = 'text', disab
       </label>
       <div className="relative">
         <span className="absolute left-3 top-3.5 text-gray-400">
-          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+          {React.cloneElement(icon as React.ReactElement<LucideProps>, { size: 18 })}
+
         </span>
         <InputComponent
           type={type}
@@ -135,7 +139,7 @@ export const AccountPage = () => {
                   id: profile.id,
                   email: profile.email,
                   full_name: profile.full_name,
-                  avatar_url: profile.avatar_url,
+                  avatar_url: profile.avatar_url ?? undefined,
                 }}
                 onAvatarChange={handleAvatarUpload}
               />
