@@ -2,15 +2,10 @@
 export default {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}", // Scans all your component files for classes
+    "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {
-      fontFamily: {
-        // As per the JSON spec, 'Inter' is a good default
-        sans: ['Inter', 'sans-serif'],
-      },
-    },
+    extend: {},
   },
   plugins: [],
 }

@@ -1,10 +1,12 @@
 /* Import Tailwind's base styles, components, and utilities */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
-/* You can add any custom global styles here */
+@import "tailwindcss";
+
+
+/* Add a global background color.
+  We use the hex code for gray-100 to avoid PostCSS build order issues.
+*/
 body {
-  /* This applies a good default background color for the app */
-  @apply bg-gray-100;
+  background-color: #f3f4f6; /* This is Tailwind's gray-100 */
 }
+
