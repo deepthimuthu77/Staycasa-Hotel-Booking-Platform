@@ -8,7 +8,8 @@ import {
   ParkingCircle 
 } from 'lucide-react';
 import type { Hotel } from '../data/data.tsx';
-import { mockHotelList, formatCurrency } from '../data/data.tsx'; 
+// --- FIX: Removed 'mockHotelList' from this import ---
+import { formatCurrency } from '../data/data.tsx'; 
 
 // --- TYPE DEFINITIONS ---
 // 'Hotel' type is imported from './data/data.tsx'
@@ -18,14 +19,7 @@ type HotelCardProps = {
   onClick: (hotel: Hotel) => void;
 };
 
-// --- MOCK DATA ---
-// 'mockHotel' is imported from './data/data.tsx'
-
-// --- HELPER FUNCTION ---
-// 'formatCurrency' is imported from './data/data.tsx'
-
-
-// --- HotelCard Component ---
+// --- HotelCard Component (No changes here) ---
 /**
  * Displays a single hotel's information in a card format.
  * (As specified in json: animated, responsive, price, rating, location, badges)
@@ -34,10 +28,11 @@ type HotelCardProps = {
 export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   const { 
     name, 
-    city, 
-    rating, 
+    // city, // 'city' is now inside 'address'
+    address,
+    popularity_score, // Use 'popularity_score'
     stars, 
-    min_price, 
+    base_price, // Use 'base_price'
     currency, 
     thumbnail, 
     amenities, 
@@ -45,42 +40,37 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   } = hotel;
 
   // Helper to get amenities icons
- const getAmenityIcon = (amenity: string) => {
-      switch (amenity) {
-        case 'wifi':
-          return (
-            <span key="wifi" title="Free WiFi">
-              <Wifi size={16} />
-            </span>
-          );
+ const getAmenityIcon = (amenity: string, i?: number) => {
+  const key = `${amenity}-${i ?? amenity}`;
+  const name = (amenity || '').toLowerCase();
 
-        case 'breakfast':
-          return (
-            <span key="breakfast" title="Breakfast Included">
-              <Utensils size={16} />
-            </span>
-          );
+  if (name.includes('wifi') || name === 'wifi') {
+    return <Wifi key={key} size={16} className="text-gray-600" />;
+  }
 
-        case 'pool':
-          return (
-            <span key="pool" title="Swimming Pool">
-              <ParkingCircle size={16} />
-            </span>
-          );
+  if (name.includes('pool')) {
+    return (
+      <span key={key} className="text-gray-600 text-sm px-2 py-1 bg-gray-100 rounded">
+        Pool
+      </span>
+    );
+  }
 
-        case 'ac':
-          return (
-            <span key="ac" title="Air Conditioning">
-              <Wind size={16} />
-            </span>
-          );
+  if (name.includes('restaurant') || name.includes('dining') || name.includes('utensils')) {
+    return <Utensils key={key} size={16} className="text-gray-600" />;
+  }
 
-        default:
-          return null;
-      }
-  };
+  if (name.includes('ac') || name.includes('air')) {
+    return <Wind key={key} size={16} className="text-gray-600" />;
+  }
 
+  if (name.includes('parking')) {
+    return <ParkingCircle key={key} size={16} className="text-gray-600" />;
+  }
 
+  // fallback: render the amenity text
+  return <span key={key} className="text-xs text-gray-600">{amenity}</span>;
+ };
 
   return (
     <div 
@@ -88,15 +78,15 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
       onClick={() => onClick(hotel)}
     >
       <div className="relative">
-        <img className="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-105" src={thumbnail} alt={`Exterior of ${name}`} />
-        {is_featured && (
-          <span className="absolute top-3 left-3 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-md">
-            Featured
-          </span>
-        )}
+        <div className="flex items-center gap-3 text-gray-600 my-3">
+          {amenities?.slice(0, 4).map((a, i) => getAmenityIcon(a, i))}
+          {amenities?.length > 4 && (
+            <span className="text-xs font-medium">+{amenities.length - 4} more</span>
+          )}
+        </div>
         <div className="absolute top-3 right-3 bg-blue-600 text-white text-sm font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
           <Star size={14} fill="white" />
-          <span>{rating.toFixed(1)}</span>
+          <span>{popularity_score?.toFixed(1) || 'N/A'}</span>
         </div>
       </div>
       
@@ -106,7 +96,7 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
             <h3 className="text-xl font-bold text-gray-800">{name}</h3>
             <p className="text-sm text-gray-500 flex items-center gap-1">
               <MapPin size={14} />
-              {city}
+              {address?.city || 'Unknown City'}
             </p>
           </div>
           <div className="flex items-center text-yellow-500">
@@ -117,8 +107,8 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
         </div>
 
         <div className="flex items-center gap-3 text-gray-600 my-3">
-          {amenities.slice(0, 4).map(getAmenityIcon)}
-          {amenities.length > 4 && (
+          {amenities?.slice(0, 4).map(getAmenityIcon)}
+          {amenities?.length > 4 && (
             <span className="text-xs font-medium">+{amenities.length - 4} more</span>
           )}
         </div>
@@ -126,7 +116,7 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
         <div className="flex justify-between items-center mt-4">
           <div>
             <span className="text-2xl font-bold text-gray-900">
-              {formatCurrency(min_price, currency).replace(/\.00$/, '')}
+              {formatCurrency(base_price, currency).replace(/\.00$/, '')}
             </span>
             <span className="text-sm text-gray-500">/ night</span>
           </div>
@@ -152,12 +142,30 @@ export default function App() {
     console.log("Card clicked:", hotel.name);
   };
 
+  // --- FIX: Create a local mock object for the demo ---
+  const demoHotel: Hotel = {
+    id: "h-demo",
+    name: "Demo Hotel Card",
+    slug: "demo-hotel-card",
+    city: "Demo City", // Kept for simplicity, though 'address' is preferred
+    address: { street: "123 Demo St", city: "Demo City", country: "DemoLand", lat: 0, lng: 0 },
+    stars: 4,
+    popularity_score: 4.5,
+    description: "A demo hotel",
+    amenities: ["wifi", "pool", "ac"],
+    gallery: [],
+    thumbnail: "https://placehold.co/400x300/3498db/ffffff?text=Demo+Hotel",
+    base_price: 3000,
+    currency: "INR",
+    is_featured: true
+  };
+
   return (
     <div className="bg-gray-100 p-8 min-h-screen">
       <div className="max-w-sm mx-auto">
-        <HotelCard hotel={mockHotelList[0]} onClick={handleCardClick} />
+        {/* --- FIX: Use the new local demoHotel object --- */}
+        <HotelCard hotel={demoHotel} onClick={handleCardClick} />
       </div>
     </div>
   );
 }
-

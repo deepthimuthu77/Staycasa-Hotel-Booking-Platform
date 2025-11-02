@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, Loader2 } from 'lucide-react';
 
 // Import the central types and helper functions
 import { formatCurrency } from '../data/data';
@@ -9,15 +9,19 @@ import type { PriceBreakdown } from '../data/data';
 type BookingSummaryProps = {
   priceBreakdown: PriceBreakdown;
   onBookNow: () => void;
+  isLoading?: boolean; // <-- ADDED THIS LINE
 };
 
 // --- BookingSummary Component ---
 /**
  * A sticky summary card for the booking preview page.
  * Shows a detailed price breakdown and a "Book Now" button.
- * (This code is extracted from BookingPreviewPage.tsx)
  */
-export const BookingSummary = ({ priceBreakdown, onBookNow }: BookingSummaryProps) => {
+export const BookingSummary = ({ 
+  priceBreakdown, 
+  onBookNow, 
+  isLoading = false // <-- ADDED THIS LINE
+}: BookingSummaryProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { 
     nights, 
@@ -71,11 +75,17 @@ export const BookingSummary = ({ priceBreakdown, onBookNow }: BookingSummaryProp
         <span className="text-2xl font-bold text-blue-600">{formattedTotal}</span>
       </div>
       
+      {/* --- BUTTON UPDATED --- */}
       <button
         onClick={onBookNow}
-        className="w-full bg-blue-600 text-white text-lg font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300"
+        disabled={isLoading} // <-- ADDED THIS
+        className="w-full bg-blue-600 text-white text-lg font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
-        Book Now
+        {isLoading ? (
+          <Loader2 size={24} className="animate-spin mx-auto" /> // <-- ADDED LOADING SPINNER
+        ) : (
+          'Book Now'
+        )}
       </button>
       <p className="text-xs text-gray-500 mt-3 text-center">
         You won't be charged yet. This is a mock payment.
@@ -104,6 +114,7 @@ export default function App() {
         <BookingSummary 
           priceBreakdown={mockPriceBreakdown} 
           onBookNow={() => alert("Book Now Clicked!")} 
+          isLoading={false} // You can toggle this to 'true' to test the loading spinner
         />
       </div>
     </div>

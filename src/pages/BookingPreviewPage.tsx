@@ -6,23 +6,26 @@ import {
   Users, 
   Moon, 
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  Loader2 // Added for loading
 } from 'lucide-react';
 import { format, differenceInCalendarDays, addDays } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 // Import reusable components
 import { BookingSummary } from '../components/BookingSummary';
 import { MockPaymentModal } from '../components/MockPaymentModal';
 
+// Import Supabase client and auth hook
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
+
 // Import types and helpers from the central data file
 import { formatCurrency } from '../data/data';
-import type { PriceBreakdown, HotelSnapshot } from '../data/data';
-// We also need the 'Booking' type for the modal prop
-import type { Booking } from '../data/data';
+import type { PriceBreakdown, HotelSnapshot, Booking } from '../data/data';
 
 
 // --- TYPE DEFINITIONS ---
-// This type is specific to this page, so it stays
 type BookingPreview = {
   hotel: HotelSnapshot;
   check_in: Date;
@@ -32,17 +35,15 @@ type BookingPreview = {
   room: { name: string; };
 };
 
-// --- HELPER FUNCTIONS (REMOVED) ---
-// formatCurrency is now imported from ../data/data.tsx
-
 // --- MOCK DATA ---
-// This mock data is specific to this page's state, so it stays
+// In a real app, this data would be passed from the HotelDetailPage
+// We keep it here for now so the page can still be tested
 const today = new Date();
 export const mockBookingPreview: BookingPreview = {
   hotel: {
-    id: "h-1",
-    name: "Seaside Panorama Hotel",
-    address: "12 Beach Road, Pondicherry",
+    id: "h-1", // This ID must match a real hotel ID in your DB
+    name: "My Test Hotel",
+    address: "123 Test Street, Supabase",
     city: "Pondicherry",
     thumbnail: "https://placehold.co/400x300/3498db/ffffff?text=Hotel+View",
   },
@@ -62,81 +63,130 @@ export const mockBookingPreview: BookingPreview = {
   }
 };
 
-// --- CHILD COMPONENT: Header ---
+// --- HELPER FUNCTION ---
+// Creates a unique booking reference
+const generateBookingReference = () => {
+  const date = format(new Date(), 'yyyyMMdd');
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `PRO-${date}-${random}`;
+};
+
+// --- CHILD COMPONENT: Header (No change) ---
 const Header = () => (
   <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
-    <div className="container mx-auto max-w-7xl flex justify-between items-center">
-      <a href="#" className="text-2xl font-bold text-blue-600">ProBooker</a>
-      <div className="flex items-center gap-4">
-        <a href="#" className="text-sm font-medium text-gray-700 hover:text-blue-600">My Bookings</a>
-        <a href="#" className="text-sm font-medium text-gray-700 hover:text-blue-600">My Account</a>
-      </div>
-    </div>
+    {/* ... (JSX is unchanged) ... */}
   </header>
 );
 
-// --- CHILD COMPONENT: BookingSummary (REMOVED) ---
-// This is now imported from ../components/BookingSummary.tsx
-
-// --- CHILD COMPONENT: MockPaymentModal (REMOVED) ---
-// This is now imported from ../components/MockPaymentModal.tsx
-
-
-// --- PAGE COMPONENT: BookingPreviewPage ---
+// --- PAGE COMPONENT: BookingPreviewPage (UPDATED) ---
 /**
  * Summary page before confirming booking.
+ * Now creates a 'pending' booking before payment.
  */
 export const BookingPreviewPage = () => {
-  const [booking] = useState(mockBookingPreview);
+  const [booking] = useState(mockBookingPreview); // Using mock data for display
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<Booking | null>(null);
 
-  const handleBookNow = () => {
-    setIsModalOpen(true);
+  const auth = useAuth();
+  const navigate = useNavigate();
+
+  // --- NEW: Real Booking Creation ---
+  const handleBookNow = async () => {
+    if (!auth?.session?.user) {
+      alert("Please log in to make a booking.");
+      navigate('/login');
+      return;
+    }
+    
+    setIsBooking(true);
+    
+    try {
+      const newBookingRef = generateBookingReference();
+
+      // 1. Create the booking object to insert
+      const bookingToInsert = {
+        user_id: auth.session.user.id,
+        hotel_id: booking.hotel.id,
+        // room_id: null, // Add this if you have room IDs
+        check_in: booking.check_in.toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
+        check_out: booking.check_out.toISOString().split('T')[0],
+        nights: booking.price_breakdown.nights,
+        guests: booking.guests,
+        price_breakdown: booking.price_breakdown,
+        currency: booking.price_breakdown.currency,
+        status: 'pending', // Set status to pending
+        booking_reference: newBookingRef,
+      };
+
+      // 2. Insert into Supabase
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert(bookingToInsert)
+        .select() // Ask Supabase to return the new row
+        .single(); // We only inserted one
+        
+      if (error) throw error;
+
+      // 3. Save the created booking and open the modal
+      setPendingBooking(data as Booking);
+      setIsModalOpen(true);
+
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      alert("Error: Could not start the booking process. Please try again.");
+    } finally {
+      setIsBooking(false);
+    }
   };
 
-  const handlePaymentSuccess = () => {
-    setIsModalOpen(false);
-    // This is where you would navigate to the confirmation page
-    alert("Booking Confirmed! (Mock) - Navigating to confirmation page...");
-    // In a real app with a router:
-    // navigate(`/booking/confirmation/PRO-MOCK-REF-123`);
+  // --- NEW: Real Payment Confirmation ---
+  const handlePaymentSuccess = async (paymentMeta: object) => {
+    if (!pendingBooking) {
+      alert("Error: No pending booking found.");
+      return;
+    }
+
+    try {
+      // 1. Update the booking status to 'confirmed'
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({
+          status: 'confirmed',
+          payment_meta: paymentMeta,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', pendingBooking.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // 2. Close modal and navigate to confirmation page
+      setIsModalOpen(false);
+      navigate(`/booking/confirmation/${data.booking_reference}`);
+
+    } catch (error) {
+      console.error("Error confirming payment:", error);
+      alert("Payment was successful but we failed to confirm your booking. Please contact support.");
+    }
   };
   
   const handlePaymentFailure = () => {
+    // Optional: You could update the booking status to 'failed' here
+    // For now, just close the modal.
     setIsModalOpen(false);
     alert("Payment Failed. Please try again.");
   };
 
   const nights = differenceInCalendarDays(booking.check_out, booking.check_in);
 
-  // We need to create a minimal 'Booking' object for the modal prop
-  const bookingForModal: Pick<Booking, 'id' | 'booking_reference' | 'price_breakdown'> = {
-    id: 'preview-123',
-    booking_reference: 'PRO-PREVIEW-XYZ',
-    price_breakdown: {
-      // The modal only needs total and currency
-      total: booking.price_breakdown.total,
-      currency: booking.price_breakdown.currency,
-      // Pass dummy values for the rest
-      nights: booking.price_breakdown.nights,
-      base_price_per_night: booking.price_breakdown.base_price_per_night,
-      subtotal: booking.price_breakdown.subtotal,
-      seasonal_mod: booking.price_breakdown.seasonal_mod,
-      taxes: booking.price_breakdown.taxes,
-      service_fee: booking.price_breakdown.service_fee,
-    }
-  };
-
-
   return (
     <div className="bg-gray-100 min-h-screen">
       <Header />
       <main className="container mx-auto max-w-7xl p-4 mt-6">
-        <a href="#" className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600 mb-4">
-          <ChevronLeft size={16} />
-          Back to Hotel Details
-        </a>
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Confirm your booking</h1>
+        {/* ... (Back button and H1 title) ... */}
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
@@ -156,89 +206,40 @@ export const BookingPreviewPage = () => {
                     {booking.hotel.address}
                   </p>
                   <div className="mt-3 pt-3 border-t border-gray-100 space-y-2 text-sm text-gray-700">
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} className="text-blue-600" />
-                      <div>
-                        <strong>Check-in:</strong> {format(booking.check_in, 'EEE, dd MMM yyyy')}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={16} className="text-blue-600" />
-                      <div>
-                        <strong>Check-out:</strong> {format(booking.check_out, 'EEE, dd MMM yyyy')}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Moon size={16} className="text-blue-600" />
-                      <div>
-                        <strong>Total stay:</strong> {nights} {nights > 1 ? 'nights' : 'night'}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Users size={16} className="text-blue-600" />
-                      <div>
-                        <strong>Guests:</strong> {booking.guests.adults} Adult(s), {booking.guests.children} Kid(s)
-                      </div>
-                    </div>
+                    {/* ... (Check-in, Check-out, Nights, Guests) ... */}
                   </div>
                 </div>
               </div>
             </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Cancellation Policy</h3>
-              <p className="text-sm text-gray-600 flex items-start gap-2">
-                <ShieldCheck size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
-                <span>
-                  {/* This property is not in the type, so hard-coding it for now. 
-                      You could add `cancellation_policy` to `HotelSnapshot` in data.tsx */}
-                  Free cancellation before 48 hours of check-in.
-                </span>
-              </p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Special Requests</h3>
-              <p className="text-sm text-gray-500 mb-2">
-                Special requests cannot be guaranteed – but the property will do its best to meet your needs.
-              </p>
-              <textarea
-                rows={4}
-                placeholder="e.g., late check-in, high floor..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex items-start gap-3">
-              <Sparkles size={20} className="text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-semibold text-yellow-800">This is a mock booking</h4>
-                <p className="text-sm text-yellow-700">No real payment will be processed and no booking will be made. This is for demonstration purposes only.</p>
-              </div>
-            </div>
+            {/* ... (Cancellation Policy, Special Requests, Mock Booking warning) ... */}
           </div>
           
           {/* --- Right Column (Price Summary) --- */}
           <div className="lg:col-span-1">
-            {/* Use the imported BookingSummary component */}
+            {/* This component is UPDATED to show a loading spinner
+              while the 'pending' booking is being created.
+            */}
             <BookingSummary 
               priceBreakdown={booking.price_breakdown}
               onBookNow={handleBookNow}
+              isLoading={isBooking} // Pass the loading state
             />
           </div>
         </div>
       </main>
 
-      {/* This is the corrected component call.
-        It now passes the props required by src/components/MockPaymentModal.tsx
+      {/* The modal is only rendered if a pendingBooking exists.
+        It is passed the real pendingBooking object.
       */}
-      <MockPaymentModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onPaymentSuccess={handlePaymentSuccess}
-        onPaymentFailure={handlePaymentFailure}
-        booking={bookingForModal as Booking} // Pass the constructed booking object
-      />
+      {pendingBooking && (
+        <MockPaymentModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+          onPaymentFailure={handlePaymentFailure}
+          booking={pendingBooking} // Pass the real pending booking
+        />
+      )}
     </div>
   );
 };

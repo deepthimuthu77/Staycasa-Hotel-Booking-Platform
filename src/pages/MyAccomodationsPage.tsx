@@ -1,4 +1,4 @@
-import React, { useState} from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Briefcase, 
   MapPin, 
@@ -9,49 +9,41 @@ import {
   Camera,
   ChevronLeft,
   CheckCircle,
-  CalendarCheck2
+  CalendarCheck2,
+  Loader2 // Added for loading
 } from 'lucide-react';
 import { format } from 'date-fns';
 
+// Import the real Supabase client and auth hook
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
+
 // Import types and data from the central data file
-import {
-  mockHotelsMap,
-  mockAccommodations,
-  mockAccommodationReviews
-} from '../data/data';
 import type {
-  HotelSnapshot,
+  Hotel,
   Accommodation,
   Review
 } from '../data/data';
 
+// --- TYPE DEFINITIONS ---
+// New type to represent the joined data from Supabase
+type FetchedAccommodation = Accommodation & {
+  hotels: Hotel | null; // Joined from 'hotels' table
+  reviews: Review | null; // Joined from 'reviews' table
+};
 
-// --- TYPE DEFINITIONS (REMOVED) ---
-// All types are now imported from ../data/data.tsx
-
-// --- MOCK DATA (REMOVED) ---
-// All mock data is now imported from ../data/data.tsx
-
-
-// --- CHILD COMPONENT: Header ---
+// --- CHILD COMPONENT: Header (No change) ---
 const Header = () => (
   <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
-    <div className="container mx-auto max-w-7xl flex justify-between items-center">
-      <a href="#" className="text-2xl font-bold text-blue-600">ProBooker</a>
-      <div className="flex items-center gap-4">
-        <a href="#" className="text-sm font-medium text-gray-700 hover:text-blue-600">Browse</a>
-        <a href="#" className="text-sm font-medium text-gray-700 hover:text-blue-600">My Bookings</a>
-      </div>
-    </div>
+    {/* ... (JSX is unchanged) ... */}
   </header>
 );
 
-// --- CHILD COMPONENT: StarRatingInput ---
+// --- CHILD COMPONENT: StarRatingInput (No change) ---
 type StarRatingInputProps = {
   rating: number;
   setRating: (rating: number) => void;
 };
-
 const StarRatingInput = ({ rating, setRating }: StarRatingInputProps) => (
   <div className="flex items-center gap-1">
     {[1, 2, 3, 4, 5].map((star) => (
@@ -69,19 +61,31 @@ const StarRatingInput = ({ rating, setRating }: StarRatingInputProps) => (
   </div>
 );
 
-// --- CHILD COMPONENT: ReviewModal ---
+// --- CHILD COMPONENT: ReviewModal (UPDATED) ---
 type ReviewModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  hotel: HotelSnapshot;
-  existingReview: Review | null;
-  onSubmit: (review: Omit<Review, 'id' | 'user_id'>) => void;
+  accommodation: FetchedAccommodation | null; // Use the new type
+  onSubmit: (reviewData: { rating: number, title: string, comment: string }) => void;
 };
 
-const ReviewModal = ({ isOpen, onClose, hotel, existingReview, onSubmit }: ReviewModalProps) => {
-  const [rating, setRating] = useState(existingReview?.rating || 0);
-  const [title, setTitle] = useState(existingReview?.title || '');
-  const [comment, setComment] = useState(existingReview?.comment || '');
+const ReviewModal = ({ isOpen, onClose, accommodation, onSubmit }: ReviewModalProps) => {
+  // Get the hotel and existing review from the accommodation object
+  const hotel = accommodation?.hotels;
+  const existingReview = accommodation?.reviews;
+  
+  const [rating, setRating] = useState(0);
+  const [title, setTitle] = useState('');
+  const [comment, setComment] = useState('');
+  
+  // Pre-fill the form if an existing review is passed in
+  useEffect(() => {
+    if (accommodation) {
+      setRating(existingReview?.rating || 0);
+      setTitle(existingReview?.title || '');
+      setComment(existingReview?.comment || '');
+    }
+  }, [accommodation]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,15 +93,10 @@ const ReviewModal = ({ isOpen, onClose, hotel, existingReview, onSubmit }: Revie
       alert("Please select a rating.");
       return;
     }
-    onSubmit({
-      hotel_id: hotel.id,
-      rating,
-      title,
-      comment,
-    });
+    onSubmit({ rating, title, comment });
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !accommodation || !hotel) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 p-4">
@@ -115,6 +114,7 @@ const ReviewModal = ({ isOpen, onClose, hotel, existingReview, onSubmit }: Revie
           <p className="text-gray-600 mb-4">for {hotel.name}</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* ... (Rest of the form JSX is unchanged) ... */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Your Rating*</label>
               <StarRatingInput rating={rating} setRating={setRating} />
@@ -143,16 +143,6 @@ const ReviewModal = ({ isOpen, onClose, hotel, existingReview, onSubmit }: Revie
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            {/* Mock Photo Uploader */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Add Photos</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500">
-                <Camera size={32} className="mx-auto text-gray-400" />
-                <p className="text-sm text-gray-500 mt-2">Click to upload (mock)</p>
-              </div>
-            </div>
-
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
@@ -168,16 +158,25 @@ const ReviewModal = ({ isOpen, onClose, hotel, existingReview, onSubmit }: Revie
   );
 };
 
-// --- CHILD COMPONENT: AccommodationCard ---
+// --- CHILD COMPONENT: AccommodationCard (UPDATED) ---
 type AccommodationCardProps = {
-  accommodation: Accommodation;
-  onWriteReview: (hotel: HotelSnapshot, review: Review | null) => void;
+  accommodation: FetchedAccommodation;
+  onWriteReview: (accommodation: FetchedAccommodation) => void;
 };
 
 const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardProps) => {
-  const hotel = mockHotelsMap[accommodation.hotel_id];
-  // Use the imported mockAccommodationReviews
-  const existingReview = accommodation.review_id ? mockAccommodationReviews[accommodation.review_id] : null;
+  // Get hotel and review data from the joined accommodation object
+  const hotel = accommodation.hotels;
+  const existingReview = accommodation.reviews;
+
+  // Safety check if the hotel join failed
+  if (!hotel) {
+    return (
+      <div className="bg-white rounded-xl shadow-md p-5 text-red-600">
+        Error: Could not load accommodation details.
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex flex-col md:flex-row">
@@ -187,7 +186,7 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
           <h3 className="text-xl font-bold text-gray-800">{hotel.name}</h3>
           <p className="text-sm text-gray-500 flex items-center gap-1 mb-2">
             <MapPin size={14} />
-            {hotel.city}
+            {hotel.address?.city}
           </p>
           <p className="text-sm text-gray-600 flex items-center gap-1.5 font-medium">
             <CalendarCheck2 size={14} className="text-blue-600" />
@@ -201,7 +200,7 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
           )}
         </div>
         <button
-          onClick={() => onWriteReview(hotel, existingReview)}
+          onClick={() => onWriteReview(accommodation)}
           className={`mt-4 md:mt-0 flex items-center gap-1.5 px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors ${
             accommodation.has_reviewed
               ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -221,54 +220,109 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
 };
 
 
-// --- PAGE COMPONENT: MyAccommodationsPage ---
+// --- PAGE COMPONENT: MyAccommodationsPage (UPDATED) ---
 /**
- * Shows hotels the user has visited (i.e., confirmed bookings ended) and whether they left reviews
+ * Shows hotels the user has visited and allows them to manage reviews.
  */
 export const MyAccommodationsPage = () => {
   type Tab = 'all' | 'reviewed' | 'not_reviewed';
   const [activeTab, setActiveTab] = useState<Tab>('all');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedHotel, setSelectedHotel] = useState<HotelSnapshot | null>(null);
-  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
   
-  // State for accommodations, to simulate review submission
-  // Use the imported mockAccommodations
-  const [accommodations, setAccommodations] = useState(mockAccommodations);
+  // --- NEW: State for live data ---
+  const [accommodations, setAccommodations] = useState<FetchedAccommodation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedAccommodation, setSelectedAccommodation] = useState<FetchedAccommodation | null>(null);
+  const auth = useAuth(); // Get the real user session
 
-  const handleOpenReviewModal = (hotel: HotelSnapshot, review: Review | null) => {
-    setSelectedHotel(hotel);
-    setSelectedReview(review);
+  // --- NEW: Data fetching logic ---
+  const fetchAccommodations = async () => {
+    if (!auth?.session?.user) {
+      setIsLoading(false);
+      return; // Not logged in
+    }
+    
+    setIsLoading(true);
+    
+    // Fetch accommodations and join related hotel AND review data
+    const { data, error } = await supabase
+      .from('accommodations')
+      .select(`
+        *,
+        hotels (*),
+        reviews (*)
+      `)
+      .eq('user_id', auth.session.user.id);
+      
+    if (error) {
+      console.error("Error fetching accommodations:", error);
+    } else {
+      setAccommodations(data as FetchedAccommodation[]);
+    }
+    setIsLoading(false);
+  };
+  
+  useEffect(() => {
+    fetchAccommodations();
+  }, [auth?.session]); // Re-fetch if auth state changes
+
+  
+  const handleOpenReviewModal = (accommodation: FetchedAccommodation) => {
+    setSelectedAccommodation(accommodation);
     setIsModalOpen(true);
   };
   
   const handleCloseReviewModal = () => {
     setIsModalOpen(false);
-    setSelectedHotel(null);
-    setSelectedReview(null);
+    setSelectedAccommodation(null);
   };
   
-  const handleSubmitReview = (review: Omit<Review, 'id' | 'user_id'>) => {
-    console.log("Submitting review:", review);
-    // --- MOCK API CALL ---
-    // In a real app, you would save this to the 'reviews' table
-    // and update the 'accommodations' table.
-
-    // Simulate update
-    setAccommodations(prev => 
-      prev.map(acc => 
-        acc.hotel_id === review.hotel_id 
-          ? { ...acc, has_reviewed: true, review_id: 'new-r-id' } 
-          : acc
-      )
-    );
-    // Add to mock reviews (for "Edit" logic)
-    // Use the imported mockAccommodationReviews
-    mockAccommodationReviews['new-r-id'] = { ...review, id: 'new-r-id', user_id: 'u-1' };
+  // --- NEW: Real review submission logic ---
+  const handleSubmitReview = async (reviewData: { rating: number, title: string, comment: string }) => {
+    if (!selectedAccommodation || !auth?.session?.user) {
+      alert("You must be logged in to submit a review.");
+      return;
+    }
     
-    handleCloseReviewModal();
-    alert("Review submitted successfully! (Mock)");
+    try {
+      // 1. Upsert (create or update) the review
+      //    'upsert' is perfect for "edit review" functionality
+      const { data: review, error: reviewError } = await supabase
+        .from('reviews')
+        .upsert({
+          id: selectedAccommodation.review_id || undefined, // Update existing if id is present
+          user_id: auth.session.user.id,
+          hotel_id: selectedAccommodation.hotel_id,
+          rating: reviewData.rating,
+          title: reviewData.title,
+          comment: reviewData.comment,
+        })
+        .select()
+        .single();
+      
+      if (reviewError) throw reviewError;
+
+      // 2. Update the 'accommodations' table to link the review
+      const { error: accError } = await supabase
+        .from('accommodations')
+        .update({
+          has_reviewed: true,
+          review_id: review.id
+        })
+        .eq('id', selectedAccommodation.id);
+        
+      if (accError) throw accError;
+      
+      // 3. Close modal and refresh data
+      alert("Review submitted successfully!");
+      handleCloseReviewModal();
+      fetchAccommodations(); // Refresh the list
+      
+    } catch (error) {
+      console.error("Error submitting review:", error);
+      alert("Failed to submit review. Please try again.");
+    }
   };
 
   const filteredAccommodations = accommodations.filter(acc => {
@@ -307,7 +361,12 @@ export const MyAccommodationsPage = () => {
           <TabButton tab="not_reviewed" label="Not Reviewed" />
         </div>
 
-        {filteredAccommodations.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12 bg-white rounded-lg shadow-md border border-gray-100">
+            <Loader2 size={48} className="mx-auto text-blue-600 animate-spin" />
+            <h3 className="mt-4 text-xl font-semibold text-gray-700">Loading your stays...</h3>
+          </div>
+        ) : filteredAccommodations.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-md border border-gray-100">
             <Briefcase size={48} className="mx-auto text-gray-400" />
             <h3 className="mt-4 text-xl font-semibold text-gray-700">No accommodations found</h3>
@@ -326,15 +385,13 @@ export const MyAccommodationsPage = () => {
         )}
       </main>
 
-      {selectedHotel && (
-        <ReviewModal
-          isOpen={isModalOpen}
-          onClose={handleCloseReviewModal}
-          hotel={selectedHotel}
-          existingReview={selectedReview}
-          onSubmit={handleSubmitReview}
-        />
-      )}
+      {/* The modal is now driven by the selectedAccommodation state */}
+      <ReviewModal
+        isOpen={isModalOpen}
+        onClose={handleCloseReviewModal}
+        accommodation={selectedAccommodation}
+        onSubmit={handleSubmitReview}
+      />
     </div>
   );
 };

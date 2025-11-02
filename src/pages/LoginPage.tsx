@@ -7,14 +7,11 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { AuthOtpFlow } from '../components/AuthOtpFlow';
 
 // Import the real useAuth hook from App.tsx
-// Make sure App.tsx exports useAuth
 import { useAuth } from '../App';
 
 // Import your Supabase client
-import { supabase } from '../lib/supabaseclient';
-
-// --- TYPE DEFINITIONS (REMOVED) ---
-// We no longer need the mock User type
+// We still need supabase for AuthOtpFlow, but not in this component
+// import { supabase } from '../lib/supabaseClient';
 
 /**
  * OTP login screen using the reusable AuthOtpFlow component.
@@ -27,40 +24,21 @@ export const LoginPage = () => {
   // 1. Check if the user is already logged in
   useEffect(() => {
     if (isAuthenticated) {
-      // If user is already logged in, redirect them
-      // to their profile. No need to show the login page.
       navigate('/profile', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
   // 2. Handle a successful login from the AuthOtpFlow component
-  const handleLoginSuccess = async (user: SupabaseUser) => {
-    try {
-      // 3. This is a critical step:
-      // After Supabase auth, we create (or update) a matching
-      // row in our public 'users' table.
-      const { data, error } = await supabase
-        .from('users')
-        .upsert({
-          id: user.id, // The user's auth ID
-          email: user.email,
-          updated_at: new Date().toISOString(),
-          // full_name, bio, etc. will be null until the user
-          // edits them on the AccountPage.
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating user profile:', error.message);
-      }
-
-      // 4. Navigate the user to their profile page
-      navigate('/profile', { replace: true });
-    } catch (err) {
-      console.error('Error in login success handler:', err);
-    }
+  // --- THIS IS THE FIX ---
+  // The database trigger now handles profile creation.
+  // This function just needs to navigate the user.
+  const handleLoginSuccess = (user: SupabaseUser) => {
+    console.log("Login successful, navigating to profile:", user.id);
+    // The database trigger has already created the profile.
+    // We can safely navigate to the profile page.
+    navigate('/profile', { replace: true });
   };
+  // --- END OF FIX ---
 
   return (
     <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
@@ -94,3 +72,4 @@ export default function App() {
   // Router and AuthProvider to work correctly in isolation.
   return <LoginPage />;
 }
+

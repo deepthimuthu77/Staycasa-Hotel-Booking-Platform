@@ -10,13 +10,15 @@ import {
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
-// Duplicated for standalone use
+// This local type is a subset of the main Booking type.
+// It works perfectly with the real Booking object.
 export type Booking = {
   id: string;
   booking_reference: string;
   price_breakdown: {
     total: number;
     currency: string;
+    // The main type has more fields, but this is all this component needs.
   };
 };
 
@@ -39,6 +41,7 @@ export const formatCurrency = (amount: number, currency: string = "INR"): string
 // --- MockPaymentModal Component ---
 /**
  * A modal for the fake payment flow (QR, fake apps).
+ * This component is self-contained and requires no changes.
  */
 export const MockPaymentModal = ({ 
   booking, 
@@ -57,6 +60,8 @@ export const MockPaymentModal = ({
       // Simulate a 80% success rate
       if (Math.random() < 0.8) {
         setPaymentState('CONFIRMED');
+        
+        // This is the object sent to the onPaymentSuccess prop
         const paymentMeta = {
           mock: true,
           method: activeTab === 'qr' ? "FAKE_QR" : "FAKE_UPI_APP",
@@ -64,6 +69,7 @@ export const MockPaymentModal = ({
           status: "confirmed",
           paid_at: new Date().toISOString()
         };
+        
         // Close modal after success animation
         setTimeout(() => {
           onPaymentSuccess(paymentMeta);

@@ -1,31 +1,27 @@
-import React, { useState } from 'react';
-import type { LucideProps } from "lucide-react";
-
+import React, { useState, useEffect } from 'react';
+import type { LucideProps } from 'lucide-react';
 import { 
-  User as UserIcon, // Aliased to avoid name conflict
+  User as UserIcon,
   Mail, 
   Phone, 
   BookText, 
   ShieldCheck, 
   Save, 
   ChevronLeft,
+  Loader2 // Added for loading
 } from 'lucide-react';
 
-// Import the reusable component from the components directory
+// Import the reusable component
 import { AvatarUploader } from '../components/AvatarUploader';
 
-// Import types and mock data from data.tsx
-import type { UserProfile } from '../data/data.tsx';
-import { mockUser } from '../data/data.tsx';
+// Import Supabase client and auth hook
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
 
-// --- TYPE DEFINITIONS (REMOVED) ---
-// The UserProfile type is now imported from ../data/data
+// Import types from data.tsx
+import type { UserProfile } from '../data/data';
 
-// --- MOCK DATA (REMOVED) ---
-// The mockUser object is now imported from ../data/data
-
-
-// --- CHILD COMPONENT: Header ---
+// --- CHILD COMPONENT: Header (No change) ---
 const Header = () => (
   <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
     <div className="container mx-auto max-w-7xl flex justify-between items-center">
@@ -38,12 +34,12 @@ const Header = () => (
   </header>
 );
 
-// --- CHILD COMPONENT: FormInputRow ---
+// --- CHILD COMPONENT: FormInputRow (No change) ---
 type FormInputRowProps = {
   icon: React.ReactNode;
   label: string;
   name: string;
-  value: string | null;
+  value: string | null | undefined; // Allow undefined
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   type?: 'text' | 'email' | 'tel' | 'textarea';
   disabled?: boolean;
@@ -60,7 +56,6 @@ const FormInputRow = ({ icon, label, name, value, onChange, type = 'text', disab
       <div className="relative">
         <span className="absolute left-3 top-3.5 text-gray-400">
           {React.cloneElement(icon as React.ReactElement<LucideProps>, { size: 18 })}
-
         </span>
         <InputComponent
           type={type}
@@ -79,50 +74,156 @@ const FormInputRow = ({ icon, label, name, value, onChange, type = 'text', disab
 };
 
 
-// --- PAGE COMPONENT: AccountPage ---
+// --- PAGE COMPONENT: AccountPage (UPDATED) ---
 /**
- * User profile page (with AvatarUploader).
+ * User profile page, connected to Supabase.
  */
 export const AccountPage = () => {
-  // Use the imported mockUser as the initial state
-  const [profile, setProfile] = useState<UserProfile>(mockUser);
+  const auth = useAuth(); // Get the real auth session
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // --- NEW: Fetch profile data on load ---
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!auth?.session?.user) return; // Wait for user
+
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', auth.session.user.id)
+        .single(); // We only expect one row
+
+      if (error) {
+        console.error("Error fetching profile:", error.message);
+      } else {
+        setProfile(data);
+      }
+      setIsLoading(false);
+    };
+
+    fetchProfile();
+  }, [auth?.session]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setProfile(prev => ({ ...prev, [name]: value }));
+    setProfile(prev => (prev ? { ...prev, [name]: value } : null));
   };
 
   /**
+   * --- NEW: Real Avatar Upload ---
    * This function is passed to the reusable AvatarUploader component.
-   * It handles the "upload" logic and returns a boolean.
    */
   const handleAvatarUpload = async (file: File): Promise<boolean> => {
-    console.log("Uploading new avatar:", file.name);
-    
-    // --- MOCK UPLOAD ---
-    await new Promise(res => setTimeout(res, 1000));
-    
-    // Optimistically update the profile state with a local blob URL
-    const newAvatarUrl = URL.createObjectURL(file);
-    setProfile(prev => ({ ...prev, avatar_url: newAvatarUrl }));
+    if (!auth?.session?.user) return false;
 
-    console.log("Upload complete (mock)");
-    return true; // Return true on success
+    // Use user ID and timestamp to create a unique file path
+    const filePath = `${auth.session.user.id}/${Date.now()}-${file.name}`;
+    
+    // 1. Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('user-avatars')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error("Upload failed:", uploadError.message);
+      alert("Upload failed. Please try again.");
+      return false;
+    }
+
+    // 2. Get the public URL
+    const { data: urlData } = supabase.storage
+      .from('user-avatars')
+      .getPublicUrl(filePath);
+      
+    const newAvatarUrl = urlData.publicUrl;
+
+    // 3. Update the 'users' table with the new URL
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ avatar_url: newAvatarUrl, updated_at: new Date().toISOString() })
+      .eq('id', auth.session.user.id);
+
+    if (updateError) {
+      console.error("Failed to update avatar URL:", updateError.message);
+      alert("Avatar uploaded but failed to save. Please try again.");
+      return false;
+    }
+
+    // 4. Optimistically update local state to show new image
+    setProfile(prev => (prev ? { ...prev, avatar_url: newAvatarUrl } : null));
+    return true;
   };
 
+  /**
+   * --- NEW: Real Profile Save ---
+   */
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Saving profile (text fields):", profile);
+    if (!profile || !auth?.session?.user) return;
+
+    setIsSaving(true);
     
-    // In a real app, update the 'users' table in Supabase
-    alert("Profile saved successfully! (Mock)");
+    const { error } = await supabase
+      .from('users')
+      .update({
+        full_name: profile.full_name,
+        phone: profile.phone,
+        bio: profile.bio,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', auth.session.user.id);
+    
+    setIsSaving(false);
+    if (error) {
+      alert("Error saving profile: " + error.message);
+    } else {
+      alert("Profile saved successfully!");
+    }
   };
+
+  /**
+   * --- NEW: Real Password Reset ---
+   */
+  const handlePasswordReset = async () => {
+    if (!auth?.session?.user?.email) {
+        alert("Could not find user email.");
+        return;
+    }
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      auth.session.user.email,
+      {
+        redirectTo: `${window.location.origin}/password-reset` // URL to your password reset page
+      }
+    );
+    
+    if (error) {
+      alert("Error sending reset email: " + error.message);
+    } else {
+      alert("Password reset email sent! Please check your inbox.");
+    }
+  };
+
+
+  if (isLoading || !profile) {
+    return (
+      <div className="bg-gray-100 min-h-screen">
+        <Header />
+        <div className="flex justify-center items-center h-96">
+          <Loader2 size={48} className="animate-spin text-blue-600" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-100 min-h-screen">
       <Header />
       <main className="container mx-auto max-w-7xl p-4 mt-6">
-        <a href="#" className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600 mb-4">
+        <a href="/" className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600 mb-4">
           <ChevronLeft size={16} />
           Back to Dashboard
         </a>
@@ -133,13 +234,12 @@ export const AccountPage = () => {
           <div className="lg:col-span-1">
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col items-center">
               <AvatarUploader
-                // The reusable component expects a 'user' prop
-                // We create it from our 'profile' state
+                // Pass the real user data from the 'profile' state
                 user={{
                   id: profile.id,
-                  email: profile.email,
-                  full_name: profile.full_name,
-                  avatar_url: profile.avatar_url ?? undefined,
+                  email:  auth.session!.user.email!,
+                  full_name: profile.full_name || 'New User',
+                  avatar_url: profile.avatar_url || undefined,
                 }}
                 onAvatarChange={handleAvatarUpload}
               />
@@ -162,9 +262,9 @@ export const AccountPage = () => {
                   icon={<Mail />}
                   label="Email Address"
                   name="email"
-                  value={profile.email}
+                  value={ auth.session!.user.email}
                   onChange={handleChange}
-                  disabled={true}
+                  disabled={true} // Email is from auth and shouldn't be changed here
                 />
                 <FormInputRow
                   icon={<Phone />}
@@ -194,7 +294,7 @@ export const AccountPage = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => alert("Password reset link sent! (Mock)")}
+                  onClick={handlePasswordReset}
                   className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800"
                 >
                   <ShieldCheck size={16} />
@@ -206,10 +306,15 @@ export const AccountPage = () => {
             <div className="flex justify-end">
               <button
                 type="submit"
-                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+                disabled={isSaving}
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:bg-gray-400"
               >
-                <Save size={18} />
-                Save Changes
+                {isSaving ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Save size={18} />
+                )}
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -221,5 +326,7 @@ export const AccountPage = () => {
 
 // --- Default Export Wrapper (for running in Canvas) ---
 export default function App() {
+  // This page needs to be wrapped in AuthProvider and Router
+  // to function correctly in isolation.
   return <AccountPage />;
 }

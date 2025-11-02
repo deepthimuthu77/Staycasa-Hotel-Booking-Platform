@@ -1,23 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  Star, 
-  MapPin, 
   SlidersHorizontal,
-  DollarSign,
-  ChevronDown,
-  Calendar,
-  X
+  Loader2 // Using Loader2 as a standard loading icon
 } from 'lucide-react';
 
 // Import the official stylesheet for react-day-picker
 import 'react-day-picker/dist/style.css';
-import { format } from 'date-fns';
 
-// Import types, data, and helpers from the central data file
-import { 
-  mockHotelList, 
-  formatCurrency 
-} from '../data/data';
+// Import your Supabase client
+import { supabase } from '../lib/supabaseClient';
+
+// Import types and helpers from the central data file
+// NOTE: We keep the types, but remove the mock data imports
 import type { 
   Hotel, 
   Filters, 
@@ -31,22 +25,9 @@ import { DateRangePicker } from '../components/DateRangePicker';
 import { FilterBar } from '../components/FilterBar';
 
 
-// --- CHILD COMPONENT: HotelCard (REMOVED) ---
-// This component is now imported from ../components/HotelCard.tsx
-
-// --- CHILD COMPONENT: SearchBar (REMOVED) ---
-// This component is now imported from ../components/SearchBar.tsx
-
-// --- CHILD COMPONENT: DateRangePicker (REMOVED) ---
-// This component is now imported from ../components/DateRangePicker.tsx
-
-// --- CHILD COMPONENT: FilterBar (REMOVED) ---
-// This component is now imported from ../components/FilterBar.tsx
-
-
 // --- PAGE COMPONENT: BrowsePage ---
 /**
- * Main homepage where users browse hotels.
+ * Main homepage where users browse hotels, now connected to Supabase.
  */
 export const BrowsePage = () => {
   const [query, setQuery] = useState("");
@@ -57,25 +38,84 @@ export const BrowsePage = () => {
     rating: 4.0,
     amenities: ['wifi']
   });
+  
+  // --- NEW: State for live data ---
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleSearch = (searchQuery: string) => {
-    console.log("Searching for:", searchQuery, dates, filters);
+  // Function to search/fetch data
+  const fetchHotels = async () => {
+    setIsLoading(true);
+
+    // Start with a basic query to the 'hotels' table
+    let queryBuilder = supabase
+      .from('hotels')
+      .select('*');
+
+    // 1. Apply Search Query (on name OR city)
+    if (query) {
+      // Use 'or' to search across multiple columns
+      // Note: Supabase 'or' needs the full query string for each part
+      queryBuilder = queryBuilder.or(`name.ilike.%${query}%,address->>city.ilike.%${query}%`);
+    }
+
+    // 2. Apply Price Filter (Max Price)
+    // We assume the column is `base_price` as in the schema
+    queryBuilder = queryBuilder.lte('base_price', filters.priceRange.max);
+
+    // 3. Apply Star Filter
+    if (filters.stars.length > 0) {
+      queryBuilder = queryBuilder.in('stars', filters.stars);
+    }
+    
+    // 4. Apply Amenities Filter
+    if (filters.amenities.length > 0) {
+        // Use the 'contains' operator on the text[] column
+        queryBuilder = queryBuilder.contains('amenities', filters.amenities);
+    }
+
+    // --- NOTE: Add Date Availability Filter here in a real app ---
+    // This requires complex Postgres functions/views to check rooms/bookings.
+    // We skip the date filter for this basic connection step.
+
+    // Execute the final query
+    const { data, error } = await queryBuilder;
+
+    if (error) {
+      console.error("Error fetching hotels:", error);
+      setHotels([]); // Clear data on error
+    } else {
+      // Supabase v2 returns data directly, ensure it's not null
+      setHotels((data as Hotel[]) || []);
+    }
+    setIsLoading(false);
   };
   
-  // Apply filters to mock data for demo
-  const filteredHotels = mockHotelList.filter(hotel => {
-    const nameMatch = hotel.name.toLowerCase().includes(query.toLowerCase()) || 
-                      hotel.city.toLowerCase().includes(query.toLowerCase());
-    const priceMatch = hotel.min_price <= filters.priceRange.max;
-    const starMatch = filters.stars.length === 0 || filters.stars.includes(hotel.stars);
-    const amenityMatch = filters.amenities.every(amenity => hotel.amenities.includes(amenity));
+  // Trigger fetch when query or filters change
+  useEffect(() => {
+    // We wrap fetchHotels in a timeout to "debounce" user input
+    // This prevents firing an API call on every single key press
+    const timerId = setTimeout(() => {
+      fetchHotels();
+    }, 500); // Wait 500ms after user stops typing
 
-    return nameMatch && priceMatch && starMatch && amenityMatch;
-  });
+    return () => clearTimeout(timerId); // Cleanup
+  }, [query, filters]);
+
+  // Handle search button click
+  const handleSearch = (searchQuery: string) => {
+    // setQuery(searchQuery) is already called by the SearchBar's onQueryChange
+    // This function can just trigger an immediate fetch if needed,
+    // but the useEffect already handles it.
+    console.log("Search triggered for:", searchQuery);
+    fetchHotels(); // Trigger an immediate fetch on button click
+  };
+  
+  // The filtering logic is now handled in the Supabase query above.
+  // We just map over the 'hotels' state.
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      {/* <style>{dayPickerStyles}</style> <-- This has been removed */}
       
       {/* --- Header & Search Bar --- */}
       <header className="sticky top-0 z-30 bg-white shadow-sm p-4">
@@ -101,7 +141,7 @@ export const BrowsePage = () => {
         <div className="flex flex-col lg:flex-row gap-6">
           
           {/* --- Filters (Sidebar) --- */}
-          <aside className="w-full lg:w-1/4">
+          <aside className="w-full lg:w-1D4">
             <div className="sticky top-24">
               {/* Use the imported FilterBar component */}
               <FilterBar filters={filters} onFilterChange={setFilters} />
@@ -111,24 +151,37 @@ export const BrowsePage = () => {
           {/* --- Hotel Grid (Main) --- */}
           <section className="w-full lg:w-3/4">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              {filteredHotels.length} results found
+              {isLoading 
+                ? 'Searching...' 
+                : `${hotels.length} results found`
+              }
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {/* Use the imported HotelCard component */}
-              {filteredHotels.map(hotel => (
-                <HotelCard 
-                  key={hotel.id} 
-                  hotel={hotel} 
-                  onClick={(h) => console.log("Navigating to hotel:", h.slug)} 
-                />
-              ))}
-            </div>
-            {filteredHotels.length === 0 && (
-              <div className="text-center py-16 bg-white rounded-lg shadow-md">
-                <h3 className="text-xl font-semibold text-gray-700">No hotels found</h3>
-                <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
-              </div>
-            )}
+              
+              {isLoading ? (
+                // Simple loading placeholder
+                <div className="col-span-full text-center py-16 text-gray-500">
+                  <Loader2 size={32} className="mx-auto animate-spin" />
+                  <p className="mt-2">Fetching hotels from the database...</p>
+                </div>
+              ) : (
+                <>
+                  {hotels.map(hotel => (
+                    <HotelCard 
+                      key={hotel.id} 
+                      hotel={hotel} 
+                      onClick={(h) => console.log("Navigating to hotel:", h.slug)} 
+                    />
+                  ))}
+                  {hotels.length === 0 && (
+                    <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
+                      <h3 className="text-xl font-semibold text-gray-700">No hotels found</h3>
+                      <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div >
           </section>
         </div>
       </main>

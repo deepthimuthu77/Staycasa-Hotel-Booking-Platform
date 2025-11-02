@@ -10,7 +10,7 @@ import {
 import type { Session } from '@supabase/supabase-js';
 
 // Import your new Supabase client
-import { supabase } from './lib/supabaseclient';
+import { supabase } from './lib/supabaseClient';
 
 // Import all the pages
 import { BrowsePage } from './pages/BrowsePage';
