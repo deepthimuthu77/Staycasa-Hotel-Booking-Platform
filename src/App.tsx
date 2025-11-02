@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import { createContext, useContext, useState, useEffect } from 'react';
 import {
   BrowserRouter,
@@ -21,6 +23,10 @@ import { BookingConfirmationPage } from './pages/BookingConfirmationPage';
 import { AccountPage } from './pages/AccountPage';
 import { MyBookingsPage } from './pages/MyBookingsPage';
 import { MyAccommodationsPage } from './pages/MyAccomodationsPage';
+
+// --- (NEW) Import the session shell layout ---
+// (Assuming you created the file in `src/layouts/ThreeTabSessionShell.tsx`)
+import { ThreeTabSessionShell } from './layouts/ThreeTabSessionShell';
 
 // --- REAL Auth Context ---
 // This context will hold the real Supabase session
@@ -62,7 +68,12 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Show a loading spinner or blank page while session is being fetched
   if (loading) {
-    return <div>Loading...</div>;
+    // You can replace this with a more polished global loader
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-100">
+        <p className="text-lg font-semibold text-gray-700">Loading session...</p>
+      </div>
+    );
   }
 
   return (
@@ -80,7 +91,7 @@ const ProtectedRoute = () => {
     // Redirect to login if not authenticated
     return <Navigate to="/login" replace />;
   }
-  return <Outlet />; // Render the child route (e.g., AccountPage)
+  return <Outlet />; // Render the child route (e.g., ThreeTabSessionShell)
 };
 
 // --- Main Layout (AppShell) ---
@@ -105,18 +116,31 @@ const Layout = () => {
             <Link to="/" className="text-gray-700 hover:text-blue-600">
               Browse
             </Link>
-            <Link to="/bookings" className="text-gray-700 hover:text-blue-600">
-              My Bookings
-            </Link>
-            <Link
-              to="/accommodations"
-              className="text-gray-700 hover:text-blue-600"
-            >
-              My Stays
-            </Link>
-            <Link to="/profile" className="text-gray-700 hover:text-blue-600">
-              My Account
-            </Link>
+            
+            {/* (UPDATED) These links now point to the pages within the shell */}
+            {isAuthenticated && (
+              <>
+                <Link
+                  to="/bookings"
+                  className="text-gray-700 hover:text-blue-600"
+                >
+                  My Bookings
+                </Link>
+                <Link
+                  to="/accommodations"
+                  className="text-gray-700 hover:text-blue-600"
+                >
+                  My Stays
+                </Link>
+                <Link
+                  to="/profile"
+                  className="text-gray-700 hover:text-blue-600"
+                >
+                  My Account
+                </Link>
+              </>
+            )}
+
             {isAuthenticated ? (
               <button
                 onClick={handleLogout}
@@ -168,14 +192,27 @@ function App() {
               element={<BookingConfirmationPage />}
             />
 
-            {/* Protected Routes (now really protected) */}
+            {/* --- (UPDATED) Protected Routes --- */}
+            {/* This block checks if the user is authenticated.
+              If they are, it renders the <Outlet />, which is the
+              <ThreeTabSessionShell />.
+            */}
             <Route element={<ProtectedRoute />}>
-              <Route path="profile" element={<AccountPage />} />
-              <Route path="bookings" element={<MyBookingsPage />} />
-              <Route
-                path="accommodations"
-                element={<MyAccommodationsPage />}
-              />
+              {/* This shell provides the tabbed navigation and an <Outlet />
+                for its own child pages.
+              */}
+              <Route element={<ThreeTabSessionShell />}>
+                {/* These routes render *inside* the ThreeTabSessionShell's Outlet.
+                  e.g., Navigating to /profile renders:
+                  <Layout> -> <ProtectedRoute> -> <ThreeTabSessionShell> -> <AccountPage>
+                */}
+                <Route path="profile" element={<AccountPage />} />
+                <Route path="bookings" element={<MyBookingsPage />} />
+                <Route
+                  path="accommodations"
+                  element={<MyAccommodationsPage />}
+                />
+              </Route>
             </Route>
 
             {/* Fallback for unknown routes */}

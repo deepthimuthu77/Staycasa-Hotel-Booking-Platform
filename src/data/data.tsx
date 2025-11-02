@@ -1,3 +1,5 @@
+// src/data/data.tsx
+
 import { addDays } from 'date-fns';
 
 // ================================================================================================
@@ -9,17 +11,22 @@ import { addDays } from 'date-fns';
 export type UserProfile = {
   id: string;
   
-  full_name: string | null; // Changed to match DB
+  full_name: string | null; 
   phone: string | null;
   bio: string | null;
   avatar_url: string | null;
-  updated_at?: string; // Added to match DB
+  updated_at?: string; 
+  
+  // --- (NEW) Added fields from JSON spec ---
+  date_of_birth?: string; // Stored as 'YYYY-MM-DD' string or date
+  language?: string; // e.g., 'en', 'fr'
+  currency?: string; // e.g., 'INR', 'USD'
 };
 
 // --- Hotel & Room Types ---
 export type Room = {
   id: string;
-  hotel_id?: string; // Added to match DB
+  hotel_id?: string; 
   name: string;
   description: string;
   capacity: number;
@@ -33,17 +40,17 @@ export type Hotel = {
   id: string;
   name: string;
   slug: string;
-  city: string; // This is in the 'address' jsonb, but duplicated here for simplicity
+  city: string; 
   address: { street: string; city: string; country: string; zip?: string; lat: number; lng: number };
   stars: number;
-  popularity_score: number; // Changed from 'rating' to match DB
+  popularity_score: number; 
   description: string;
   amenities: string[];
   policies?: { checkIn: string; checkOut: string; cancellation: string; };
   gallery: string[];
   thumbnail: string; 
   rooms?: Room[]; // For joined data
-  base_price: number; // Changed from 'min_price' to match DB
+  base_price: number; 
   currency: string;
   is_featured: boolean;
 };
@@ -73,13 +80,13 @@ export type Booking = {
   booking_reference: string;
   user_id: string;
   hotel: HotelSnapshot; // This is for the mock, FetchedBooking type will use a join
-  hotel_id?: string; // Added to match DB
+  hotel_id?: string; 
   check_in: string; // ISO Date string
   check_out: string; // ISO Date string
   guests: { adults: number; children: number };
   price_breakdown: PriceBreakdown;
   status: 'confirmed' | 'cancelled' | 'pending';
-  payment_meta?: object; // Added to match DB
+  payment_meta?: object; 
 };
 
 export type BookingStatus = 'upcoming' | 'ongoing' | 'past' | 'cancelled';
@@ -111,7 +118,7 @@ export type Accommodation = {
 export type Filters = {
   priceRange: { min: number; max: number };
   stars: number[];
-  rating: number; // Kept for the FilterBar component
+  rating: number; 
   amenities: string[];
 };
 
@@ -128,8 +135,6 @@ export type GuestCount = {
 
 // ================================================================================================
 // --- 2. MOCK DATA (REMOVED) ---
-// All mock data (mockUser, mockHotelList, mockBookings, etc.)
-// has been removed as the app is now connected to Supabase.
 // ================================================================================================
 
 

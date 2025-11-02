@@ -1,16 +1,17 @@
+// src/pages/MyAccomodationsPage.tsx
+
 import React, { useState, useEffect } from 'react';
-import { 
-  Briefcase, 
-  MapPin, 
-  Star, 
-  MessageSquare, 
-  Edit3, 
-  X, 
+import {
+  Briefcase,
+  MapPin,
+  Star,
+  MessageSquare,
+  Edit3,
+  X,
   Camera,
-  ChevronLeft,
   CheckCircle,
   CalendarCheck2,
-  Loader2 // Added for loading
+  Loader2, // Added for loading
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -19,11 +20,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
 
 // Import types and data from the central data file
-import type {
-  Hotel,
-  Accommodation,
-  Review
-} from '../data/data';
+import type { Hotel, Accommodation, Review } from '../data/data';
 
 // --- TYPE DEFINITIONS ---
 // New type to represent the joined data from Supabase
@@ -32,12 +29,7 @@ type FetchedAccommodation = Accommodation & {
   reviews: Review | null; // Joined from 'reviews' table
 };
 
-// --- CHILD COMPONENT: Header (No change) ---
-const Header = () => (
-  <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
-    {/* ... (JSX is unchanged) ... */}
-  </header>
-);
+// --- (REMOVED) Header component ---
 
 // --- CHILD COMPONENT: StarRatingInput (No change) ---
 type StarRatingInputProps = {
@@ -52,7 +44,9 @@ const StarRatingInput = ({ rating, setRating }: StarRatingInputProps) => (
         type="button"
         onClick={() => setRating(star)}
         className={`transition-colors ${
-          star <= rating ? 'text-yellow-400' : 'text-gray-300 hover:text-yellow-300'
+          star <= rating
+            ? 'text-yellow-400'
+            : 'text-gray-300 hover:text-yellow-300'
         }`}
       >
         <Star size={28} fill="currentColor" />
@@ -66,18 +60,27 @@ type ReviewModalProps = {
   isOpen: boolean;
   onClose: () => void;
   accommodation: FetchedAccommodation | null; // Use the new type
-  onSubmit: (reviewData: { rating: number, title: string, comment: string }) => void;
+  onSubmit: (reviewData: {
+    rating: number;
+    title: string;
+    comment: string;
+  }) => void;
 };
 
-const ReviewModal = ({ isOpen, onClose, accommodation, onSubmit }: ReviewModalProps) => {
+const ReviewModal = ({
+  isOpen,
+  onClose,
+  accommodation,
+  onSubmit,
+}: ReviewModalProps) => {
   // Get the hotel and existing review from the accommodation object
   const hotel = accommodation?.hotels;
   const existingReview = accommodation?.reviews;
-  
+
   const [rating, setRating] = useState(0);
   const [title, setTitle] = useState('');
   const [comment, setComment] = useState('');
-  
+
   // Pre-fill the form if an existing review is passed in
   useEffect(() => {
     if (accommodation) {
@@ -85,12 +88,12 @@ const ReviewModal = ({ isOpen, onClose, accommodation, onSubmit }: ReviewModalPr
       setTitle(existingReview?.title || '');
       setComment(existingReview?.comment || '');
     }
-  }, [accommodation]);
+  }, [accommodation, existingReview]); // (FIX) Added existingReview to dependency array
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) {
-      alert("Please select a rating.");
+      alert('Please select a rating.');
       return;
     }
     onSubmit({ rating, title, comment });
@@ -116,12 +119,19 @@ const ReviewModal = ({ isOpen, onClose, accommodation, onSubmit }: ReviewModalPr
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* ... (Rest of the form JSX is unchanged) ... */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your Rating*</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Your Rating*
+              </label>
               <StarRatingInput rating={rating} setRating={setRating} />
             </div>
-            
+
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Review Title</label>
+              <label
+                htmlFor="title"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Review Title
+              </label>
               <input
                 type="text"
                 id="title"
@@ -131,9 +141,14 @@ const ReviewModal = ({ isOpen, onClose, accommodation, onSubmit }: ReviewModalPr
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div>
-              <label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">Your Review</label>
+              <label
+                htmlFor="comment"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Your Review
+              </label>
               <textarea
                 id="comment"
                 value={comment}
@@ -164,7 +179,10 @@ type AccommodationCardProps = {
   onWriteReview: (accommodation: FetchedAccommodation) => void;
 };
 
-const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardProps) => {
+const AccommodationCard = ({
+  accommodation,
+  onWriteReview,
+}: AccommodationCardProps) => {
   // Get hotel and review data from the joined accommodation object
   const hotel = accommodation.hotels;
   const existingReview = accommodation.reviews;
@@ -180,7 +198,11 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
 
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex flex-col md:flex-row">
-      <img src={hotel.thumbnail} alt={hotel.name} className="w-full md:w-48 h-40 md:h-full object-cover" />
+      <img
+        src={hotel.thumbnail}
+        alt={hotel.name}
+        className="w-full md:w-48 h-40 md:h-full object-cover"
+      />
       <div className="p-5 flex-1 flex flex-col md:flex-row justify-between items-start">
         <div>
           <h3 className="text-xl font-bold text-gray-800">{hotel.name}</h3>
@@ -190,7 +212,8 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
           </p>
           <p className="text-sm text-gray-600 flex items-center gap-1.5 font-medium">
             <CalendarCheck2 size={14} className="text-blue-600" />
-            Last visited: {format(new Date(accommodation.last_visited_at), 'dd MMM yyyy')}
+            Last visited:{' '}
+            {format(new Date(accommodation.last_visited_at), 'dd MMM yyyy')}
           </p>
           {accommodation.has_reviewed && (
             <p className="text-sm text-green-600 flex items-center gap-1.5 font-medium mt-1">
@@ -207,18 +230,13 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
               : 'bg-blue-600 text-white hover:bg-blue-700'
           }`}
         >
-          {accommodation.has_reviewed ? (
-            <Edit3 size={16} />
-          ) : (
-            <MessageSquare size={16} />
-          )}
+          {accommodation.has_reviewed ? <Edit3 size={16} /> : <MessageSquare size={16} />}
           {accommodation.has_reviewed ? 'Edit Review' : 'Write a Review'}
         </button>
       </div>
     </div>
   );
 };
-
 
 // --- PAGE COMPONENT: MyAccommodationsPage (UPDATED) ---
 /**
@@ -227,13 +245,16 @@ const AccommodationCard = ({ accommodation, onWriteReview }: AccommodationCardPr
 export const MyAccommodationsPage = () => {
   type Tab = 'all' | 'reviewed' | 'not_reviewed';
   const [activeTab, setActiveTab] = useState<Tab>('all');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // --- NEW: State for live data ---
-  const [accommodations, setAccommodations] = useState<FetchedAccommodation[]>([]);
+  const [accommodations, setAccommodations] = useState<FetchedAccommodation[]>(
+    []
+  );
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedAccommodation, setSelectedAccommodation] = useState<FetchedAccommodation | null>(null);
+  const [selectedAccommodation, setSelectedAccommodation] =
+    useState<FetchedAccommodation | null>(null);
   const auth = useAuth(); // Get the real user session
 
   // --- NEW: Data fetching logic ---
@@ -242,49 +263,54 @@ export const MyAccommodationsPage = () => {
       setIsLoading(false);
       return; // Not logged in
     }
-    
+
     setIsLoading(true);
-    
+
     // Fetch accommodations and join related hotel AND review data
     const { data, error } = await supabase
       .from('accommodations')
-      .select(`
+      .select(
+        `
         *,
         hotels (*),
         reviews (*)
-      `)
+      `
+      )
       .eq('user_id', auth.session.user.id);
-      
+
     if (error) {
-      console.error("Error fetching accommodations:", error);
+      console.error('Error fetching accommodations:', error);
     } else {
       setAccommodations(data as FetchedAccommodation[]);
     }
     setIsLoading(false);
   };
-  
+
   useEffect(() => {
     fetchAccommodations();
   }, [auth?.session]); // Re-fetch if auth state changes
 
-  
   const handleOpenReviewModal = (accommodation: FetchedAccommodation) => {
     setSelectedAccommodation(accommodation);
     setIsModalOpen(true);
   };
-  
+
   const handleCloseReviewModal = () => {
     setIsModalOpen(false);
     setSelectedAccommodation(null);
   };
-  
+
   // --- NEW: Real review submission logic ---
-  const handleSubmitReview = async (reviewData: { rating: number, title: string, comment: string }) => {
+  const handleSubmitReview = async (reviewData: {
+    rating: number;
+    title: string;
+    comment: string;
+  }) => {
     if (!selectedAccommodation || !auth?.session?.user) {
-      alert("You must be logged in to submit a review.");
+      alert('You must be logged in to submit a review.');
       return;
     }
-    
+
     try {
       // 1. Upsert (create or update) the review
       //    'upsert' is perfect for "edit review" functionality
@@ -300,7 +326,7 @@ export const MyAccommodationsPage = () => {
         })
         .select()
         .single();
-      
+
       if (reviewError) throw reviewError;
 
       // 2. Update the 'accommodations' table to link the review
@@ -308,31 +334,30 @@ export const MyAccommodationsPage = () => {
         .from('accommodations')
         .update({
           has_reviewed: true,
-          review_id: review.id
+          review_id: review.id,
         })
         .eq('id', selectedAccommodation.id);
-        
+
       if (accError) throw accError;
-      
+
       // 3. Close modal and refresh data
-      alert("Review submitted successfully!");
+      alert('Review submitted successfully!');
       handleCloseReviewModal();
       fetchAccommodations(); // Refresh the list
-      
     } catch (error) {
-      console.error("Error submitting review:", error);
-      alert("Failed to submit review. Please try again.");
+      console.error('Error submitting review:', error);
+      alert('Failed to submit review. Please try again.');
     }
   };
 
-  const filteredAccommodations = accommodations.filter(acc => {
+  const filteredAccommodations = accommodations.filter((acc) => {
     if (activeTab === 'all') return true;
     if (activeTab === 'reviewed') return acc.has_reviewed;
     if (activeTab === 'not_reviewed') return !acc.has_reviewed;
     return false;
   });
 
-  const TabButton = ({ tab, label }: { tab: Tab, label: string }) => (
+  const TabButton = ({ tab, label }: { tab: Tab; label: string }) => (
     <button
       onClick={() => setActiveTab(tab)}
       className={`px-4 py-2 font-semibold rounded-lg ${
@@ -346,44 +371,51 @@ export const MyAccommodationsPage = () => {
   );
 
   return (
-    <div className="bg-gray-100 min-h-screen">
-      <Header />
-      <main className="container mx-auto max-w-7xl p-4 mt-6">
-        <a href="#" className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600 mb-4">
-          <ChevronLeft size={16} />
-          Back to Dashboard
-        </a>
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">My Accommodations</h1>
+    // (REMOVED) <div className="bg-gray-100 min-h-screen">
+    // (REMOVED) <Header />
+    // (REMOVED) <main ...>
+    // (REMOVED) Back to Dashboard link
 
-        <div className="flex items-center gap-2 mb-6 p-2 bg-gray-200 rounded-lg">
-          <TabButton tab="all" label="All Stays" />
-          <TabButton tab="reviewed" label="Reviewed" />
-          <TabButton tab="not_reviewed" label="Not Reviewed" />
+    // This component now renders *inside* the ThreeTabSessionShell's <Outlet>
+    <div>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6 hidden lg:block">
+        My Stays
+      </h1>
+
+      <div className="flex items-center gap-2 mb-6 p-2 bg-gray-200 rounded-lg">
+        <TabButton tab="all" label="All Stays" />
+        <TabButton tab="reviewed" label="Reviewed" />
+        <TabButton tab="not_reviewed" label="Not Reviewed" />
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow-md border border-gray-100">
+          <Loader2 size={48} className="mx-auto text-blue-600 animate-spin" />
+          <h3 className="mt-4 text-xl font-semibold text-gray-700">
+            Loading your stays...
+          </h3>
         </div>
-
-        {isLoading ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-md border border-gray-100">
-            <Loader2 size={48} className="mx-auto text-blue-600 animate-spin" />
-            <h3 className="mt-4 text-xl font-semibold text-gray-700">Loading your stays...</h3>
-          </div>
-        ) : filteredAccommodations.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-md border border-gray-100">
-            <Briefcase size={48} className="mx-auto text-gray-400" />
-            <h3 className="mt-4 text-xl font-semibold text-gray-700">No accommodations found</h3>
-            <p className="mt-1 text-gray-500">You don't have any stays in this category.</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {filteredAccommodations.map(acc => (
-              <AccommodationCard 
-                key={acc.id} 
-                accommodation={acc} 
-                onWriteReview={handleOpenReviewModal}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+      ) : filteredAccommodations.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow-md border border-gray-100">
+          <Briefcase size={48} className="mx-auto text-gray-400" />
+          <h3 className="mt-4 text-xl font-semibold text-gray-700">
+            No accommodations found
+          </h3>
+          <p className="mt-1 text-gray-500">
+            You don't have any stays in this category.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {filteredAccommodations.map((acc) => (
+            <AccommodationCard
+              key={acc.id}
+              accommodation={acc}
+              onWriteReview={handleOpenReviewModal}
+            />
+          ))}
+        </div>
+      )}
 
       {/* The modal is now driven by the selectedAccommodation state */}
       <ReviewModal
@@ -393,6 +425,8 @@ export const MyAccommodationsPage = () => {
         onSubmit={handleSubmitReview}
       />
     </div>
+    // (REMOVED) </main>
+    // (REMOVED) </div>
   );
 };
 

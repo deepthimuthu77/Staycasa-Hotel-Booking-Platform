@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+// src/components/MockPaymentModal.tsx
+
+import React, { useState, useEffect } from 'react'; // (NEW) Imported useEffect
 import { 
   X, 
   QrCode, 
@@ -10,15 +12,12 @@ import {
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
-// This local type is a subset of the main Booking type.
-// It works perfectly with the real Booking object.
 export type Booking = {
   id: string;
   booking_reference: string;
   price_breakdown: {
     total: number;
     currency: string;
-    // The main type has more fields, but this is all this component needs.
   };
 };
 
@@ -38,11 +37,7 @@ export const formatCurrency = (amount: number, currency: string = "INR"): string
   }).format(amount);
 };
 
-// --- MockPaymentModal Component ---
-/**
- * A modal for the fake payment flow (QR, fake apps).
- * This component is self-contained and requires no changes.
- */
+// --- MockPaymentModal Component (UPDATED) ---
 export const MockPaymentModal = ({ 
   booking, 
   isOpen, 
@@ -53,6 +48,25 @@ export const MockPaymentModal = ({
   const [paymentState, setPaymentState] = useState<'INIT' | 'PENDING' | 'CONFIRMED' | 'FAILED'>('INIT');
   const [activeTab, setActiveTab] = useState<'qr' | 'apps'>('qr');
 
+  // --- (NEW) Auto-fail timeout logic ---
+  useEffect(() => {
+    // Only run this logic if the modal is open and in the initial state
+    if (isOpen && paymentState === 'INIT') {
+      const timer = setTimeout(() => {
+        // If 2 minutes pass and the user hasn't done anything,
+        // automatically fail the payment.
+        console.log("Payment timed out.");
+        setPaymentState('FAILED');
+        onPaymentFailure();
+      }, 120000); // 120000ms = 2 minutes
+
+      // Cleanup: clear the timer if the component unmounts
+      // or if the payment state changes (e.g., user clicks "I have paid")
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, paymentState, onPaymentFailure]);
+  // --- End of new logic ---
+
   const handleConfirmPayment = () => {
     setPaymentState('PENDING');
     // Simulate API call
@@ -61,7 +75,6 @@ export const MockPaymentModal = ({
       if (Math.random() < 0.8) {
         setPaymentState('CONFIRMED');
         
-        // This is the object sent to the onPaymentSuccess prop
         const paymentMeta = {
           mock: true,
           method: activeTab === 'qr' ? "FAKE_QR" : "FAKE_UPI_APP",
@@ -73,7 +86,7 @@ export const MockPaymentModal = ({
         // Close modal after success animation
         setTimeout(() => {
           onPaymentSuccess(paymentMeta);
-          setPaymentState('INIT'); // Reset for next time
+          setPaymentState('INIT'); 
         }, 1500);
       } else {
         setPaymentState('FAILED');
@@ -85,6 +98,17 @@ export const MockPaymentModal = ({
   const handleRetry = () => {
     setPaymentState('INIT');
   };
+  
+  // (NEW) Reset payment state when modal is closed externally
+  useEffect(() => {
+    if (!isOpen) {
+      // Add a small delay to allow close animation to finish
+      setTimeout(() => {
+        setPaymentState('INIT');
+      }, 300);
+    }
+  }, [isOpen]);
+
 
   if (!isOpen) return null;
 
@@ -137,7 +161,6 @@ export const MockPaymentModal = ({
               {activeTab === 'qr' && (
                 <div className="flex flex-col items-center">
                   <div className="p-3 bg-white border border-gray-200 rounded-lg">
-                    {/* Fake QR Code */}
                     <QrCode size={180} className="text-gray-800" />
                   </div>
                   <p className="text-sm text-gray-600 mt-3">Scan with any UPI app</p>
@@ -187,7 +210,7 @@ export const MockPaymentModal = ({
             <div className="flex flex-col items-center justify-center h-48">
               <AlertCircle size={48} className="text-red-600" />
               <p className="text-lg font-semibold text-gray-700 mt-4">Payment Failed</p>
-              <p className="text-sm text-gray-500 mb-4">Please try again.</p>
+              <p className="text-sm text-gray-500 mb-4">Your payment request timed out or was declined.</p>
               <button
                 onClick={handleRetry}
                 className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700"

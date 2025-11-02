@@ -1,3 +1,5 @@
+// src/components/FilterBar.tsx
+
 import React, { useState } from 'react';
 import { 
   SlidersHorizontal, 
@@ -10,12 +12,11 @@ import {
 } from 'lucide-react';
 
 // --- HELPER FUNCTION ---
-// (Same helper as in data.tsx for consistency)
 export const formatCurrency = (amount: number, currency: string = "INR"): string => {
   return new Intl.NumberFormat('en-IN', { 
     style: 'currency', 
     currency: currency, 
-    minimumFractionDigits: 0 // No decimals for the slider
+    minimumFractionDigits: 0
   }).format(amount);
 };
 
@@ -32,11 +33,21 @@ type FilterBarProps = {
   onFilterChange: (newFilters: Filters) => void;
 };
 
+// --- (NEW) Define the default, cleared state for filters ---
+const clearedFilters: Filters = {
+  priceRange: { min: 0, max: 20000 }, // Max of the slider
+  stars: [], // No stars selected
+  rating: 0, // No rating selected
+  amenities: [], // No amenities selected
+};
+
 // --- FilterBar Component ---
-/**
- * UI bar with filters (price range, rating, location/amenities).
- */
 export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
+
+  // --- (NEW) Handler for the "Clear all" button ---
+  const handleClearAll = () => {
+    onFilterChange(clearedFilters);
+  };
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFilterChange({
@@ -73,7 +84,12 @@ export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
           <SlidersHorizontal size={20} />
           Filters
         </h3>
-        <button className="text-sm text-blue-600 font-medium hover:underline">
+        {/* --- (UPDATED) Added onClick handler and type="button" --- */}
+        <button 
+          type="button"
+          onClick={handleClearAll}
+          className="text-sm text-blue-600 font-medium hover:underline"
+        >
           Clear all
         </button>
       </div>
@@ -111,6 +127,7 @@ export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
             {[1, 2, 3, 4, 5].map(star => (
               <button
                 key={star}
+                type="button" // (NEW) Added type
                 onClick={() => handleStarToggle(star)}
                 className={`flex-1 p-2 rounded-lg border-2 transition-colors duration-200
                   ${filters.stars.includes(star) 
@@ -156,7 +173,10 @@ export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
         </div>
         
         {/* --- More Filters Button --- */}
-        <button className="w-full p-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold flex items-center justify-center gap-1 hover:bg-gray-50 transition-colors">
+        <button 
+          type="button" // (NEW) Added type
+          className="w-full p-2.5 rounded-lg border border-gray-300 text-gray-700 font-semibold flex items-center justify-center gap-1 hover:bg-gray-50 transition-colors"
+        >
           Show all filters
           <ChevronDown size={16} />
         </button>
@@ -166,7 +186,6 @@ export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
 };
 
 // --- Main App (for Demo) ---
-// This default export is included so you can run this file and see the component.
 export default function App() {
   const [currentFilters, setCurrentFilters] = useState<Filters>({
     priceRange: { min: 0, max: 7500 },
@@ -182,7 +201,6 @@ export default function App() {
           filters={currentFilters} 
           onFilterChange={setCurrentFilters} 
         />
-        {/* Display the current filter state to show it's working */}
         <div className="bg-gray-800 text-white rounded-lg p-4">
           <pre className="text-xs">
             {JSON.stringify(currentFilters, null, 2)}

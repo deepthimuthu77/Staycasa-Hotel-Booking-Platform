@@ -1,8 +1,12 @@
+// src/pages/BrowsePage.tsx
+
 import React, { useState, useEffect } from 'react';
 import { 
   SlidersHorizontal,
-  Loader2 // Using Loader2 as a standard loading icon
+  Loader2,
+  ChevronDown // For the sort dropdown
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom'; // (NEW) For navigation
 
 // Import the official stylesheet for react-day-picker
 import 'react-day-picker/dist/style.css';
@@ -11,7 +15,6 @@ import 'react-day-picker/dist/style.css';
 import { supabase } from '../lib/supabaseClient';
 
 // Import types and helpers from the central data file
-// NOTE: We keep the types, but remove the mock data imports
 import type { 
   Hotel, 
   Filters, 
@@ -24,95 +27,149 @@ import { SearchBar } from '../components/SearchBar';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { FilterBar } from '../components/FilterBar';
 
+// --- (NEW) Constants ---
+const PAGE_SIZE = 9; // Number of hotels to fetch per page
 
-// --- PAGE COMPONENT: BrowsePage ---
-/**
- * Main homepage where users browse hotels, now connected to Supabase.
- */
+// --- (NEW) Sort Options ---
+const sortOptions = [
+  { label: 'Popularity', value: 'popularity_score.desc' },
+  { label: 'Price (Low to High)', value: 'base_price.asc' },
+  { label: 'Price (High to Low)', value: 'base_price.desc' },
+];
+
+// --- PAGE COMPONENT: BrowsePage (UPDATED) ---
 export const BrowsePage = () => {
   const [query, setQuery] = useState("");
   const [dates, setDates] = useState<DateRange>({ from: undefined, to: undefined });
   const [filters, setFilters] = useState<Filters>({
-    priceRange: { min: 0, max: 15000 },
-    stars: [4, 5],
-    rating: 4.0,
-    amenities: ['wifi']
+    priceRange: { min: 0, max: 20000 }, // Increased default max
+    stars: [],
+    rating: 0, // Changed default to 0
+    amenities: []
   });
   
-  // --- NEW: State for live data ---
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // (NEW) For pagination
+  const [page, setPage] = useState(0); // (NEW) Pagination state
+  const [hasMore, setHasMore] = useState(true); // (NEW) To know when to stop loading
+  const [sortBy, setSortBy] = useState(sortOptions[0].value); // (NEW) Sorting state
+
+  const navigate = useNavigate(); // (NEW) For navigation
 
   // Function to search/fetch data
-  const fetchHotels = async () => {
-    setIsLoading(true);
+  const fetchHotels = async (isNewSearch = false) => {
+    if (isNewSearch) {
+      setIsLoading(true);
+      setPage(0); // Reset page for new search
+      setHasMore(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+    
+    const currentPage = isNewSearch ? 0 : page;
+    const [sortColumn, sortOrder] = sortBy.split('.');
 
-    // Start with a basic query to the 'hotels' table
-    let queryBuilder = supabase
-      .from('hotels')
-      .select('*');
+    let queryBuilder;
+
+    // --- (NEW) DATE AVAILABILITY FILTER ---
+    if (dates.from && dates.to) {
+      // If dates are selected, call the database function
+      // This assumes you created a Postgres function `get_available_hotels` in Supabase
+      // as specified in the JSON.
+      queryBuilder = supabase.rpc('get_available_hotels', {
+        check_in_date: dates.from.toISOString().split('T')[0],
+        check_out_date: dates.to.toISOString().split('T')[0],
+      });
+      
+    } else {
+      // If no dates, just query the hotels table
+      queryBuilder = supabase.from('hotels').select('*');
+    }
 
     // 1. Apply Search Query (on name OR city)
     if (query) {
-      // Use 'or' to search across multiple columns
-      // Note: Supabase 'or' needs the full query string for each part
       queryBuilder = queryBuilder.or(`name.ilike.%${query}%,address->>city.ilike.%${query}%`);
     }
 
     // 2. Apply Price Filter (Max Price)
-    // We assume the column is `base_price` as in the schema
     queryBuilder = queryBuilder.lte('base_price', filters.priceRange.max);
+    
+    // (NEW) Apply Price Filter (Min Price)
+    queryBuilder = queryBuilder.gte('base_price', filters.priceRange.min);
 
     // 3. Apply Star Filter
     if (filters.stars.length > 0) {
       queryBuilder = queryBuilder.in('stars', filters.stars);
     }
     
+    // (NEW) Apply Rating Filter
+    if (filters.rating > 0) {
+      queryBuilder = queryBuilder.gte('popularity_score', filters.rating);
+    }
+    
     // 4. Apply Amenities Filter
     if (filters.amenities.length > 0) {
-        // Use the 'contains' operator on the text[] column
         queryBuilder = queryBuilder.contains('amenities', filters.amenities);
     }
 
-    // --- NOTE: Add Date Availability Filter here in a real app ---
-    // This requires complex Postgres functions/views to check rooms/bookings.
-    // We skip the date filter for this basic connection step.
+    // 5. --- (NEW) Apply Sorting ---
+    queryBuilder = queryBuilder.order(sortColumn, { ascending: sortOrder === 'asc' });
+
+    // 6. --- (NEW) Apply Pagination ---
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    queryBuilder = queryBuilder.range(from, to);
 
     // Execute the final query
     const { data, error } = await queryBuilder;
 
     if (error) {
       console.error("Error fetching hotels:", error);
-      setHotels([]); // Clear data on error
-    } else {
-      // Supabase v2 returns data directly, ensure it's not null
-      setHotels((data as Hotel[]) || []);
+      setHotels([]);
+      setHasMore(false);
+    } else if (data) {
+      // (NEW) Handle pagination state
+      if (data.length < PAGE_SIZE) {
+        setHasMore(false);
+      }
+      
+      if (isNewSearch) {
+        setHotels(data as Hotel[]);
+      } else {
+        // Append new data for "Load More"
+        setHotels(prev => [...prev, ...(data as Hotel[])]);
+      }
+      
+      setPage(currentPage + 1);
     }
+
     setIsLoading(false);
+    setIsLoadingMore(false);
   };
   
-  // Trigger fetch when query or filters change
+  // Trigger fetch when query, filters, or sorting change
   useEffect(() => {
-    // We wrap fetchHotels in a timeout to "debounce" user input
-    // This prevents firing an API call on every single key press
+    // Debounce user input
     const timerId = setTimeout(() => {
-      fetchHotels();
-    }, 500); // Wait 500ms after user stops typing
+      fetchHotels(true); // 'true' indicates a new search
+    }, 500); 
 
-    return () => clearTimeout(timerId); // Cleanup
-  }, [query, filters]);
+    return () => clearTimeout(timerId);
+  }, [query, filters, sortBy, dates]); // (NEW) Re-fetch on date change
 
-  // Handle search button click
+
   const handleSearch = (searchQuery: string) => {
-    // setQuery(searchQuery) is already called by the SearchBar's onQueryChange
-    // This function can just trigger an immediate fetch if needed,
-    // but the useEffect already handles it.
-    console.log("Search triggered for:", searchQuery);
-    fetchHotels(); // Trigger an immediate fetch on button click
+    setQuery(searchQuery);
+    // fetchHotels(true) is already called by the useEffect
   };
   
-  // The filtering logic is now handled in the Supabase query above.
-  // We just map over the 'hotels' state.
+  // (NEW) Handle "Load More" click
+  const handleLoadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      fetchHotels(false); // 'false' indicates loading more, not a new search
+    }
+  };
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -123,13 +180,11 @@ export const BrowsePage = () => {
           <div className="flex flex-col md:flex-row items-center gap-4">
             <h1 className="text-2xl font-bold text-blue-600">ProBooker</h1>
             <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 w-full max-w-3xl">
-              {/* Use the imported SearchBar component */}
               <SearchBar 
                 query={query} 
                 onQueryChange={setQuery} 
                 onSearch={handleSearch} 
               />
-              {/* Use the imported DateRangePicker component */}
               <DateRangePicker range={dates} onRangeChange={setDates} />
             </div>
           </div>
@@ -141,47 +196,85 @@ export const BrowsePage = () => {
         <div className="flex flex-col lg:flex-row gap-6">
           
           {/* --- Filters (Sidebar) --- */}
-          <aside className="w-full lg:w-1D4">
+          <aside className="w-full lg:w-1/4">
             <div className="sticky top-24">
-              {/* Use the imported FilterBar component */}
               <FilterBar filters={filters} onFilterChange={setFilters} />
             </div>
           </aside>
 
           {/* --- Hotel Grid (Main) --- */}
           <section className="w-full lg:w-3/4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              {isLoading 
-                ? 'Searching...' 
-                : `${hotels.length} results found`
-              }
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {/* --- (NEW) Header with Sorting --- */}
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {isLoading 
+                  ? 'Searching...' 
+                  : `${hotels.length} results found`
+                }
+              </h2>
               
-              {isLoading ? (
-                // Simple loading placeholder
-                <div className="col-span-full text-center py-16 text-gray-500">
-                  <Loader2 size={32} className="mx-auto animate-spin" />
-                  <p className="mt-2">Fetching hotels from the database...</p>
-                </div>
-              ) : (
-                <>
-                  {hotels.map(hotel => (
-                    <HotelCard 
-                      key={hotel.id} 
-                      hotel={hotel} 
-                      onClick={(h) => console.log("Navigating to hotel:", h.slug)} 
-                    />
+              {/* --- (NEW) Sort Dropdown --- */}
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="appearance-none bg-white border border-gray-300 rounded-lg py-2 pl-3 pr-8 font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {sortOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
-                  {hotels.length === 0 && (
-                    <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
-                      <h3 className="text-xl font-semibold text-gray-700">No hotels found</h3>
-                      <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
-                    </div>
+                </select>
+                <ChevronDown size={18} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* --- Results Grid --- */}
+            {isLoading ? (
+              // Main loading spinner for new search
+              <div className="col-span-full text-center py-16 text-gray-500">
+                <Loader2 size={32} className="mx-auto animate-spin" />
+                <p className="mt-2">Fetching hotels from the database...</p>
+              </div>
+            ) : (
+              <>
+                {hotels.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {hotels.map(hotel => (
+                      <HotelCard 
+                        key={hotel.id} 
+                        hotel={hotel} 
+                        onClick={(h) => navigate(`/hotel/${h.slug}`)} // (NEW) Navigate on click
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  // No results found
+                  <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
+                    <h3 className="text-xl font-semibold text-gray-700">No hotels found</h3>
+                    <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
+                  </div>
+                )}
+                
+                {/* --- (NEW) Load More Button --- */}
+                <div className="mt-8 text-center">
+                  {hasMore ? (
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={isLoadingMore}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center justify-center mx-auto"
+                    >
+                      {isLoadingMore ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        'Load More Results'
+                      )}
+                    </button>
+                  ) : (
+                    <p className="text-gray-500">You've reached the end of the results.</p>
                   )}
-                </>
-              )}
-            </div >
+                </div>
+              </>
+            )}
           </section>
         </div>
       </main>
