@@ -20,10 +20,19 @@ import {
   MessageSquare,
   Share2,
   Loader2, // For loading
-  BarChart3, // (NEW) For review histogram
-  AlertCircle, // (NEW) For availability status
-  CheckCircle, // (NEW) For availability status
+  BarChart3, // For review histogram
+  AlertCircle, // For availability status
+  CheckCircle, // For availability status
 } from 'lucide-react';
+
+// (NEW) React Hook Form Imports
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { reviewSchema } from '../lib/schemas.ts'; // (NEW) Import Zod schema
+
+// (NEW) Import Auth Hook
+import { useAuth } from '../App.tsx';
 
 // --- (NEW) Import Leaflet CSS for the map ---
 import 'leaflet/dist/leaflet.css';
@@ -57,6 +66,9 @@ import type {
   PriceBreakdown 
 } from '../data/data';
 
+// (NEW) Define the form data type from the Zod schema
+type ReviewFormData = z.infer<typeof reviewSchema>;
+
 
 // --- CHILD COMPONENT: Header (No change) ---
 const Header = () => (
@@ -80,6 +92,7 @@ export const GuestSelector = ({ count, onChange }: GuestSelectorProps) => {
   };
   return (
     <div className="p-3 bg-white border border-gray-300 rounded-lg shadow-sm">
+      {/* ... (rest of GuestSelector JSX is unchanged) ... */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold">Adults</p>
@@ -106,16 +119,6 @@ export const GuestSelector = ({ count, onChange }: GuestSelectorProps) => {
   );
 };
 
-// --- CHILD COMPONENT: ReviewForm (No change for now) ---
-const ReviewForm = () => {
-  const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
-  return (
-    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-6">
-      {/* ... (rest of ReviewForm JSX is unchanged) ... */}
-    </div>
-  );
-};
 
 // --- CHILD COMPONENT: AmenityIcon (No change) ---
 const AmenityIcon: React.FC<{ amenity: string }> = ({ amenity }) => {
@@ -187,7 +190,7 @@ const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
       <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
         <h3 className="text-xl font-semibold text-gray-800 mb-4">Reviews</h3>
         <p className="text-gray-500">No reviews for this hotel yet.</p>
-        <ReviewForm />
+        {/* The ReviewForm is now rendered outside this component */}
       </div>
     );
   }
@@ -212,7 +215,186 @@ const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
           ))}
         </div>
       </div>
-      <ReviewForm />
+    </div>
+  );
+};
+
+
+// --- (NEW) CHILD COMPONENT: StarRatingInput ---
+// (Copied from MyAccomodationsPage)
+type StarRatingInputProps = {
+  rating: number;
+  setRating: (rating: number) => void;
+};
+const StarRatingInput = ({ rating, setRating }: StarRatingInputProps) => (
+  <div className="flex items-center gap-1">
+    {[1, 2, 3, 4, 5].map((star) => (
+      <button
+        key={star}
+        type="button"
+        onClick={() => setRating(star)}
+        className={`transition-colors ${
+          star <= rating
+            ? 'text-yellow-400'
+            : 'text-gray-300 hover:text-yellow-300'
+        }`}
+      >
+        <Star size={28} fill="currentColor" />
+      </button>
+    ))}
+  </div>
+);
+
+// --- (NEW) CHILD COMPONENT: ReviewForm ---
+/**
+ * A fully functional review form using React Hook Form.
+ */
+type ReviewFormProps = {
+  hotelId: string;
+  onReviewSubmit: (newReview: Review) => void;
+};
+const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
+  const auth = useAuth();
+  
+  // (NEW) Setup React Hook Form
+  const {
+    register,
+    handleSubmit,
+    reset,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<ReviewFormData>({
+    resolver: zodResolver(reviewSchema),
+    defaultValues: {
+      rating: 0,
+      title: '',
+      comment: '',
+    },
+  });
+
+  const handleFormSubmit = async (data: ReviewFormData) => {
+    if (!auth.session?.user) {
+      alert("You must be logged in to submit a review.");
+      return;
+    }
+    
+    try {
+      const newReviewData = {
+        hotel_id: hotelId,
+        user_id: auth.session.user.id,
+        // (NEW) Add user details from session/profile (if available)
+        user_name: auth.session.user.user_metadata?.full_name || 'Anonymous',
+        user_avatar: auth.session.user.user_metadata?.avatar_url || null,
+        ...data,
+      };
+
+      // 1. Insert into Supabase
+      const { data: insertedReview, error } = await supabase
+        .from('reviews')
+        .insert(newReviewData)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      // 2. Pass the new review up to the parent to update the UI
+      onReviewSubmit(insertedReview as Review);
+      
+      // 3. Reset the form
+      reset();
+
+    } catch (error: any) {
+      console.error("Error submitting review:", error);
+      alert("Failed to submit review: " + error.message);
+    }
+  };
+
+  return (
+    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6">
+      <h4 className="text-lg font-semibold text-gray-800 mb-3">Leave a Review</h4>
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Your Rating*
+          </label>
+          {/* (NEW) Controller for the custom StarRatingInput */}
+          <Controller
+            name="rating"
+            control={control}
+            render={({ field }) => (
+              <StarRatingInput
+                rating={field.value}
+                setRating={(value) => field.onChange(value)}
+              />
+            )}
+          />
+          {errors.rating && (
+            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+              <AlertCircle size={14} /> {errors.rating.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="title"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Review Title
+          </label>
+          <input
+            type="text"
+            id="title"
+            placeholder="e.g., 'A wonderful stay'"
+            className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${
+              errors.title
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-blue-500'
+            }`}
+            {...register('title')}
+          />
+          {errors.title && (
+            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+              <AlertCircle size={14} /> {errors.title.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="comment"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Your Review
+          </label>
+          <textarea
+            id="comment"
+            rows={5}
+            placeholder="Share your experience..."
+            className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${
+              errors.comment
+                ? 'border-red-500 focus:ring-red-500'
+                : 'border-gray-300 focus:ring-blue-500'
+            }`}
+            {...register('comment')}
+          />
+          {errors.comment && (
+            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+              <AlertCircle size={14} /> {errors.comment.message}
+            </p>
+          )}
+        </div>
+        <div className="flex justify-end pt-2">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center gap-2"
+          >
+            {isSubmitting && <Loader2 size={18} className="animate-spin" />}
+            {isSubmitting ? 'Submitting...' : 'Submit Review'}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
@@ -222,19 +404,23 @@ const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
 export const HotelDetailPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate(); 
+  const auth = useAuth(); // (NEW) Get auth state
 
   // State for live data
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [similarHotels, setSimilarHotels] = useState<Hotel[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
+
+  // (NEW) State to track if the current user has already reviewed
+  const [userReview, setUserReview] = useState<Review | null>(null);
   
   // State for booking panel
   const [dates, setDates] = useState<DateRange>({ from: undefined, to: undefined });
   const [guests, setGuests] = useState<GuestCount>({ adults: 2, children: 0 });
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  // --- (NEW) State for availability check ---
+  // State for availability check
   type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
   const [availabilityStatus, setAvailabilityStatus] = useState<AvailabilityStatus>('idle');
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -250,7 +436,7 @@ export const HotelDetailPage = () => {
       setHotel(null);
       setReviews([]);
       setSimilarHotels([]);
-      setAvailabilityStatus('idle'); // Reset availability
+      setAvailabilityStatus('idle'); 
       
       // 1. Fetch hotel details and its rooms
       const { data: hotelData, error: hotelError } = await supabase
@@ -277,7 +463,8 @@ export const HotelDetailPage = () => {
       const { data: reviewData, error: reviewError } = await supabase
         .from('reviews')
         .select('*')
-        .eq('hotel_id', hotelData.id);
+        .eq('hotel_id', hotelData.id)
+        .order('created_at', { ascending: false }); // (NEW) Order by newest
 
       if (!reviewError) {
         setReviews(reviewData as Review[]);
@@ -288,9 +475,9 @@ export const HotelDetailPage = () => {
         const { data: similarData } = await supabase
           .from('hotels')
           .select('*')
-          .eq('address->>city', hotelData.address.city) // Query JSONB field
-          .neq('id', hotelData.id) // Not this hotel
-          .limit(3); // Get 3
+          .eq('address->>city', hotelData.address.city) 
+          .neq('id', hotelData.id)
+          .limit(3); 
         
         if (similarData) {
           setSimilarHotels(similarData as Hotel[]);
@@ -302,6 +489,17 @@ export const HotelDetailPage = () => {
 
     fetchHotelData();
   }, [slug]); 
+
+  // (NEW) Check for existing user review whenever reviews or auth state change
+  useEffect(() => {
+    const userId = auth.session?.user?.id;
+    if (userId) {
+      const foundReview = reviews.find(r => r.user_id === userId);
+      setUserReview(foundReview || null);
+    } else {
+      setUserReview(null);
+    }
+  }, [reviews, auth.session]);
 
   
   // Dynamic Price Calculation Logic
@@ -326,15 +524,13 @@ export const HotelDetailPage = () => {
     }
   }, [dates, hotel, selectedRoom]);
 
-  // --- (UPDATED) REAL Availability Check Logic ---
+  // REAL Availability Check Logic
   useEffect(() => {
-    // Reset if not enough info
     if (!dates.from || !dates.to || !selectedRoom || !hotel) {
       setAvailabilityStatus('idle');
       return;
     }
 
-    // Check if total guests exceeds room capacity
     const totalGuests = guests.adults + guests.children;
     if (totalGuests > selectedRoom.capacity) {
       setAvailabilityStatus('unavailable');
@@ -346,10 +542,9 @@ export const HotelDetailPage = () => {
       setAvailabilityStatus('checking');
       setAvailabilityError(null);
 
-      // --- REAL API CALL (replaces mock) ---
       const { data, error } = await supabase.rpc('check_room_availability', {
         p_room_id: selectedRoom.id,
-        p_check_in: dates.from!.toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
+        p_check_in: dates.from!.toISOString().split('T')[0], 
         p_check_out: dates.to!.toISOString().split('T')[0],
       });
 
@@ -365,7 +560,6 @@ export const HotelDetailPage = () => {
       }
     };
     
-    // Debounce the check slightly
     const timer = setTimeout(() => {
       checkAvailability();
     }, 500);
@@ -382,13 +576,11 @@ export const HotelDetailPage = () => {
       return;
     }
     
-    // (NEW) Final check on availability
     if (availabilityStatus !== 'available') {
       alert(availabilityError || "This room is not available.");
       return;
     }
 
-    // Navigate to the preview page, passing all data in state
     navigate('/booking/preview', {
       state: {
         hotel: { 
@@ -409,6 +601,13 @@ export const HotelDetailPage = () => {
     });
   };
 
+  // (NEW) Callback to optimistically update UI
+  const handleReviewSubmit = (newReview: Review) => {
+    // Add new review to the top of the list
+    setReviews(prevReviews => [newReview, ...prevReviews]);
+    // Set userReview state so the form is replaced with "Already reviewed" message
+    setUserReview(newReview); 
+  };
   
   // --- Loading and Error States ---
   if (isLoading) {
@@ -437,7 +636,7 @@ export const HotelDetailPage = () => {
   // --- Render page with fetched data ---
   const { nights, subtotal, taxes, service_fee, total, base_price_per_night } = priceBreakdown;
 
-  // (NEW) Helper component for availability status
+  // Helper component for availability status
   const AvailabilityStatusMessage = () => {
     if (availabilityStatus === 'checking') {
       return (
@@ -493,6 +692,7 @@ export const HotelDetailPage = () => {
           <div className="w-full lg:w-[60%]">
             {/* Hotel Summary */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+              {/* ... (Hotel Summary JSX unchanged) ... */}
               <div className="flex justify-between items-start">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">{hotel.name}</h1>
@@ -563,9 +763,9 @@ export const HotelDetailPage = () => {
             <ReviewSummary reviews={reviews} />
             
             {/* Individual Reviews (if any exist) */}
-            {reviews.length > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
-                <h3 className="text-xl font-semibold text-gray-800 mb-4">What guests are saying</h3>
+            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4">What guests are saying</h3>
+              {reviews.length > 0 ? (
                 <div className="space-y-4">
                   {reviews.map(review => (
                     <div key={review.id} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
@@ -586,8 +786,40 @@ export const HotelDetailPage = () => {
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-gray-500">Be the first to review this hotel!</p>
+              )}
+
+              {/* --- (NEW) Auth-Aware Review Form Logic --- */}
+              <div className="mt-6">
+                {!auth.isAuthenticated && (
+                  <div className="text-center p-4 bg-gray-50 rounded-lg border">
+                    <p className="font-medium text-gray-700">Want to share your experience?</p>
+                    <p className="text-sm text-gray-500 mb-3">Please log in to leave a review.</p>
+                    <button 
+                      onClick={() => navigate('/login')}
+                      className="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                    >
+                      Log In
+                    </button>
+                  </div>
+                )}
+                {auth.isAuthenticated && userReview && (
+                  <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                    <p className="font-medium text-green-700 flex items-center justify-center gap-2">
+                      <CheckCircle size={18} /> You've reviewed this hotel.
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      You can edit your review from the "My Stays" page.
+                    </p>
+                  </div>
+                )}
+                {auth.isAuthenticated && !userReview && (
+                  <ReviewForm hotelId={hotel.id} onReviewSubmit={handleReviewSubmit} />
+                )}
               </div>
-            )}
+
+            </div>
 
 
             {/* Similar Hotels */}

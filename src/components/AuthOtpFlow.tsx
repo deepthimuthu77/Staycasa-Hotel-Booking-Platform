@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
-import { Mail, Key, Loader2, ArrowRight } from 'lucide-react';
+import { Mail, Key, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
+// (NEW) React Hook Form Imports
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { emailSchema, otpSchema } from '../lib/schemas.ts'; // (NEW) Import Zod schemas
+
 // Import your new Supabase client
-import { supabase } from '../lib/supabaseclient';
+import { supabase } from '../lib/supabaseClient';
+
+// --- (NEW) Define the form data types ---
+type EmailFormData = z.infer<typeof emailSchema>;
+type OtpFormData = z.infer<typeof otpSchema>;
 
 // --- TYPE DEFINITIONS ---
-// We no longer need the mock 'User' type.
-// The prop now expects a real Supabase User object.
 type AuthOtpFlowProps = {
   onLoginSuccess: (user: SupabaseUser) => void;
 };
@@ -15,63 +23,102 @@ type AuthOtpFlowProps = {
 // --- AuthOtpFlow Component ---
 /**
  * A two-step OTP-based login UI (Email -> OTP).
- * Now connected to the real Supabase auth flow.
+ * Now connected to the real Supabase auth flow and
+ * managed with React Hook Form.
  */
 export const AuthOtpFlow = ({ onLoginSuccess }: AuthOtpFlowProps) => {
   const [step, setStep] = useState<'email' | 'otp'>('email');
+  // (NEW) Store email state for step 2
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  // (REMOVED) otp, isLoading, error states
 
-  // --- UPDATED: Real OTP Sending ---
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
+  // --- (NEW) React Hook Form for Email Step ---
+  const {
+    register: registerEmail,
+    handleSubmit: handleEmailSubmit,
+    setError: setEmailError,
+    formState: { errors: emailErrors, isSubmitting: isEmailLoading },
+  } = useForm<EmailFormData>({
+    resolver: zodResolver(emailSchema),
+  });
 
-    // Call Supabase to send the OTP
+  // --- (NEW) React Hook Form for OTP Step ---
+  const {
+    register: registerOtp,
+    handleSubmit: handleOtpSubmit,
+    setError: setOtpError,
+    clearErrors: clearOtpErrors,
+    formState: { errors: otpErrors, isSubmitting: isOtpLoading },
+  } = useForm<OtpFormData>({
+    resolver: zodResolver(otpSchema),
+  });
+
+  // --- (UPDATED) Real OTP Sending ---
+  const handleSendOtp = async (data: EmailFormData) => {
+    // 'data' is validated by Zod: { email: string }
     const { error } = await supabase.auth.signInWithOtp({
-      email: email,
+      email: data.email,
       options: {
-        // This tells Supabase to send an OTP
-        // and allow this email to sign up if it doesn't exist.
         shouldCreateUser: true,
       },
     });
 
-    setIsLoading(false);
     if (error) {
-      setError(error.message);
+      // (NEW) Set error on the form
+      setEmailError('root', { type: 'manual', message: error.message });
     } else {
+      setEmail(data.email); // (NEW) Save email for step 2
       setStep('otp'); // Move to the next step
     }
   };
 
-  // --- UPDATED: Real OTP Verification ---
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    // Call Supabase to verify the OTP
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: email,
-      token: otp,
-      type: 'email', // Specify the type of OTP
+  // --- (UPDATED) Real OTP Verification ---
+  const handleVerifyOtp = async (data: OtpFormData) => {
+    // 'data' is validated by Zod: { otp: string }
+    const { data: verifyData, error } = await supabase.auth.verifyOtp({
+      email: email, // (NEW) Use email from state
+      token: data.otp,
+      type: 'email',
     });
 
-    setIsLoading(false);
     if (error) {
-      setError(error.message);
-    } else if (data.user) {
+      // (NEW) Set error on the form
+      setOtpError('root', { type: 'manual', message: error.message });
+    } else if (verifyData.user) {
       // Success! Pass the real user object up to the parent component
-      onLoginSuccess(data.user);
+      onLoginSuccess(verifyData.user);
     } else {
-      // This case should ideally not happen if error is null, but as a fallback
-      setError('Login failed. Please try again.');
+      setOtpError('root', {
+        type: 'manual',
+        message: 'Login failed. Please try again.',
+      });
     }
   };
+
+  // (NEW) Helper to display root error from Supabase
+    const RootError = ({ error }: { error?: unknown }) => {
+      if (!error) return null;
+  
+      // Safely extract a string message from various possible shapes
+      let message: string | undefined;
+      if (typeof error === 'string') {
+        message = error;
+      } else if (typeof error === 'object' && error !== null) {
+        const maybeMsg = (error as any).message;
+        if (typeof maybeMsg === 'string') {
+          message = maybeMsg;
+        }
+      }
+  
+      if (!message) return null;
+  
+      return (
+        <div className="bg-red-100 border border-red-300 text-red-700 text-sm p-3 rounded-lg mb-4 flex items-center gap-2">
+          <AlertCircle size={16} />
+          {message}
+        </div>
+      );
+    };
 
   return (
     <div className="w-full max-w-sm">
@@ -86,40 +133,51 @@ export const AuthOtpFlow = ({ onLoginSuccess }: AuthOtpFlowProps) => {
         </p>
       </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-300 text-red-700 text-sm p-3 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
-
       {step === 'email' && (
-        <form onSubmit={handleSendOtp} className="space-y-4">
+        <form
+          onSubmit={handleEmailSubmit(handleSendOtp)}
+          className="space-y-4"
+        >
+          {/* (NEW) Display Supabase error */}
+          <RootError error={emailErrors.root} />
+
           <div>
-            <label htmlFor="email" className="text-sm font-medium text-gray-700">
+            <label
+              htmlFor="email"
+              className="text-sm font-medium text-gray-700"
+            >
               Email
             </label>
             <div className="relative mt-1">
               <input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                required
-                className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full p-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 ${
+                  emailErrors.email
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                {...registerEmail('email')}
               />
               <Mail
                 size={18}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
             </div>
+            {/* (NEW) Display validation error */}
+            {emailErrors.email && (
+              <p className="mt-1 text-xs text-red-600">
+                {emailErrors.email.message}
+              </p>
+            )}
           </div>
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isEmailLoading}
             className="w-full p-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400"
           >
-            {isLoading ? (
+            {isEmailLoading ? (
               <Loader2 size={20} className="animate-spin" />
             ) : (
               'Send Code'
@@ -129,7 +187,13 @@ export const AuthOtpFlow = ({ onLoginSuccess }: AuthOtpFlowProps) => {
       )}
 
       {step === 'otp' && (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
+        <form
+          onSubmit={handleOtpSubmit(handleVerifyOtp)}
+          className="space-y-4"
+        >
+          {/* (NEW) Display Supabase error */}
+          <RootError error={otpErrors.root} />
+
           <div>
             <label htmlFor="otp" className="text-sm font-medium text-gray-700">
               6-Digit Code
@@ -138,45 +202,50 @@ export const AuthOtpFlow = ({ onLoginSuccess }: AuthOtpFlowProps) => {
               <input
                 id="otp"
                 type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
                 placeholder="123456"
-                required
                 maxLength={6}
-                className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full p-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 ${
+                  otpErrors.otp
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                {...registerOtp('otp')}
               />
               <Key
                 size={18}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
               />
             </div>
+            {/* (NEW) Display validation error */}
+            {otpErrors.otp && (
+              <p className="mt-1 text-xs text-red-600">
+                {otpErrors.otp.message}
+              </p>
+            )}
           </div>
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isOtpLoading}
             className="w-full p-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-400"
           >
-            {isLoading ? (
+            {isOtpLoading ? (
               <Loader2 size={20} className="animate-spin" />
             ) : (
               'Sign In'
             )}
-            {!isLoading && <ArrowRight size={20} />}
+            {!isOtpLoading && <ArrowRight size={20} />}
           </button>
 
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setStep('email');
-                setError('');
-                setOtp('');
-              }}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              Back to email
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setStep('email');
+              clearOtpErrors(); // Clear errors
+            }}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Back to email
+          </button>
         </form>
       )}
     </div>

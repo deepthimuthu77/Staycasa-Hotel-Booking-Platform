@@ -9,48 +9,58 @@ import {
   BookText,
   ShieldCheck,
   Save,
+  ChevronLeft,
   Loader2,
   Calendar,
   Globe,
   Banknote,
-  CreditCard, // (NEW) Added icon
-  Bell, // (NEW) Added icon
+  CreditCard,
+  Bell,
+  AlertCircle,
 } from 'lucide-react';
+
+// (UPDATED) React Hook Form Imports
+import { useForm, type FieldError, type UseFormRegisterReturn } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { profileSchema } from '../lib/schemas.ts'; 
 
 // Import the reusable component
 import { AvatarUploader } from '../components/AvatarUploader';
 
 // Import Supabase client and auth hook
 import { supabase } from '../lib/supabaseClient';
-import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
+import { useAuth } from '../App'; 
 
 // Import types from data.tsx
 import type { UserProfile } from '../data/data';
 
-// --- (REMOVED) Header component ---
+// (NEW) Define the form data type from the Zod schema
+type ProfileFormData = z.infer<typeof profileSchema>;
 
-// --- CHILD COMPONENT: FormInputRow (No change) ---
+
+// --- (UPDATED) CHILD COMPONENT: FormInputRow ---
 type FormInputRowProps = {
   icon: React.ReactNode;
   label: string;
   name: string;
-  value: string | null | undefined; // Allow undefined
-  onChange: (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => void;
-  type?: 'text' | 'email' | 'tel' | 'textarea' | 'date'; // (NEW) Added 'date' type
+  register: UseFormRegisterReturn; 
+  error?: FieldError; 
+  type?: 'text' | 'email' | 'tel' | 'textarea' | 'date';
   disabled?: boolean;
   placeholder?: string;
+  value?: string; // (NEW) Add value prop for disabled fields
 };
 
 const FormInputRow = ({
   icon,
   label,
   name,
-  value,
-  onChange,
+  register, 
+  error, 
   type = 'text',
   disabled = false,
+  value, // (NEW)
 }: FormInputRowProps) => {
   const InputComponent = type === 'textarea' ? 'textarea' : 'input';
 
@@ -71,17 +81,26 @@ const FormInputRow = ({
         <InputComponent
           type={type}
           id={name}
-          name={name}
-          value={value || ''}
-          onChange={onChange}
           disabled={disabled}
           placeholder={`Enter your ${label.toLowerCase()}`}
           rows={type === 'textarea' ? 4 : undefined}
-          className={`w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            disabled ? 'bg-gray-100 cursor-not-allowed' : ''
-          } ${type === 'date' ? 'text-gray-700' : ''}`}
+          className={`w-full pl-10 pr-4 py-2.5 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${
+            error
+              ? 'border-red-500 focus:ring-red-500'
+              : 'border-gray-300 focus:ring-blue-500'
+          } ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''} ${
+            type === 'date' ? 'text-gray-700' : ''
+          }`}
+          // (UPDATED) Conditionally spread register or use value
+          {...(disabled ? { value: value || '' } : register)}
         />
       </div>
+      {/* (NEW) Error message display */}
+      {error && (
+        <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+          <AlertCircle size={14} /> {error.message}
+        </p>
+      )}
     </div>
   );
 };
@@ -123,15 +142,36 @@ const NotificationToggle = ({
 // --- PAGE COMPONENT: AccountPage (UPDATED) ---
 export const AccountPage = () => {
   const auth = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined); 
 
   // (NEW) Mock state for notification preferences
   const [notifications, setNotifications] = useState({
     booking_updates: true,
     promotions: false,
   });
+
+  // (NEW) Setup React Hook Form
+  const {
+    register,
+    handleSubmit,
+    reset, 
+    watch, 
+    formState: { errors, isSubmitting }, 
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      full_name: '',
+      phone: '',
+      bio: '',
+      date_of_birth: '',
+      language: '',
+      currency: '',
+    },
+  });
+  
+  // (NEW) Watch the full_name field to display under the avatar
+  const watchedFullName = watch('full_name');
 
   // --- Fetch profile data on load ---
   useEffect(() => {
@@ -147,21 +187,16 @@ export const AccountPage = () => {
 
       if (error) {
         console.error('Error fetching profile:', error.message);
-      } else {
-        setProfile(data);
+      } else if (data) {
+        // (NEW) Populate the form with fetched data
+        reset(data);
+        setAvatarUrl(data.avatar_url); // (NEW) Set avatar URL
       }
       setIsLoading(false);
     };
 
     fetchProfile();
-  }, [auth?.session]);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setProfile((prev) => (prev ? { ...prev, [name]: value } : null));
-  };
+  }, [auth?.session, reset]); 
 
   // --- Real Avatar Upload ---
   const handleAvatarUpload = async (file: File): Promise<boolean> => {
@@ -169,7 +204,6 @@ export const AccountPage = () => {
 
     const filePath = `${auth.session.user.id}/${Date.now()}-${file.name}`;
 
-    // 1. Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('user-avatars')
       .upload(filePath, file);
@@ -180,14 +214,12 @@ export const AccountPage = () => {
       return false;
     }
 
-    // 2. Get the public URL
     const { data: urlData } = supabase.storage
       .from('user-avatars')
       .getPublicUrl(filePath);
 
     const newAvatarUrl = urlData.publicUrl;
 
-    // 3. Update the 'users' table with the new URL
     const { error: updateError } = await supabase
       .from('users')
       .update({
@@ -202,33 +234,22 @@ export const AccountPage = () => {
       return false;
     }
 
-    // 4. Optimistically update local state
-    setProfile((prev) => (prev ? { ...prev, avatar_url: newAvatarUrl } : null));
+    setAvatarUrl(newAvatarUrl);
     return true;
   };
 
   // --- (UPDATED) Real Profile Save ---
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profile || !auth?.session?.user) return;
+  const onSave = async (data: ProfileFormData) => {
+    if (!auth?.session?.user) return;
 
-    setIsSaving(true);
-
-    // (NEW) Include all new fields in the update
     const { error } = await supabase
       .from('users')
       .update({
-        full_name: profile.full_name,
-        phone: profile.phone,
-        bio: profile.bio,
-        date_of_birth: profile.date_of_birth, // (NEW)
-        language: profile.language, // (NEW)
-        currency: profile.currency, // (NEW)
+        ...data, 
         updated_at: new Date().toISOString(),
       })
       .eq('id', auth.session.user.id);
 
-    setIsSaving(false);
     if (error) {
       alert('Error saving profile: ' + error.message);
     } else {
@@ -257,9 +278,8 @@ export const AccountPage = () => {
     }
   };
 
-  if (isLoading || !profile) {
+  if (isLoading) {
     return (
-      // (UPDATED) Simplified loading state for being inside a shell
       <div className="flex justify-center items-center h-96 bg-white rounded-xl shadow-md border border-gray-100">
         <Loader2 size={48} className="animate-spin text-blue-600" />
       </div>
@@ -267,27 +287,24 @@ export const AccountPage = () => {
   }
 
   return (
-    // (REMOVED) <div className="bg-gray-100 min-h-screen">
-    // (REMOVED) <Header />
-    // (REMOVED) <main ...>
-    // (REMOVED) Back to Dashboard link
-
-    // This component now renders *inside* the ThreeTabSessionShell's <Outlet>
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6 hidden lg:block">
         My Account
       </h1>
 
-      <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <form
+        onSubmit={handleSubmit(onSave)}
+        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+      >
         {/* --- Left Column (Avatar) --- */}
         <div className="lg:col-span-1">
           <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 flex flex-col items-center">
             <AvatarUploader
               user={{
-                id: profile.id,
+                id: auth.session!.user.id,
                 email: auth.session!.user.email!,
-                full_name: profile.full_name || 'New User',
-                avatar_url: profile.avatar_url || undefined,
+                full_name: watchedFullName || 'User', 
+                avatar_url: avatarUrl, 
               }}
               onAvatarChange={handleAvatarUpload}
             />
@@ -305,42 +322,45 @@ export const AccountPage = () => {
                 icon={<UserIcon />}
                 label="Full Name"
                 name="full_name"
-                value={profile.full_name}
-                onChange={handleChange}
+                register={register('full_name')} 
+                error={errors.full_name} 
               />
+              {/* --- (THIS IS THE FIX) --- */}
               <FormInputRow
                 icon={<Mail />}
                 label="Email Address"
                 name="email"
                 value={auth.session!.user.email}
-                onChange={handleChange}
                 disabled={true}
+                // (FIX) We pass the real register, but the component will
+                // ignore it because disabled={true}
+                register={register('full_name')} 
               />
+              {/* --- (END OF FIX) --- */}
               <FormInputRow
                 icon={<Phone />}
                 label="Phone Number"
                 name="phone"
-                value={profile.phone}
-                onChange={handleChange}
                 type="tel"
+                register={register('phone')} 
+                error={errors.phone} 
               />
-              {/* --- (NEW) Date of Birth --- */}
               <FormInputRow
                 icon={<Calendar />}
                 label="Date of Birth"
                 name="date_of_birth"
-                value={profile.date_of_birth}
-                onChange={handleChange}
                 type="date"
+                register={register('date_of_birth')} 
+                error={errors.date_of_birth} 
               />
               <div className="md:col-span-2">
                 <FormInputRow
                   icon={<BookText />}
                   label="Bio"
                   name="bio"
-                  value={profile.bio}
-                  onChange={handleChange}
                   type="textarea"
+                  register={register('bio')} 
+                  error={errors.bio} 
                 />
               </div>
             </div>
@@ -356,17 +376,17 @@ export const AccountPage = () => {
                 icon={<Globe />}
                 label="Language"
                 name="language"
-                value={profile.language}
-                onChange={handleChange}
                 placeholder="e.g., 'en' or 'English'"
+                register={register('language')} 
+                error={errors.language} 
               />
               <FormInputRow
                 icon={<Banknote />}
                 label="Preferred Currency"
                 name="currency"
-                value={profile.currency}
-                onChange={handleChange}
                 placeholder="e.g., 'INR' or 'USD'"
+                register={register('currency')} 
+                error={errors.currency} 
               />
             </div>
           </div>
@@ -457,22 +477,20 @@ export const AccountPage = () => {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSubmitting} 
               className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:bg-gray-400"
             >
-              {isSaving ? (
+              {isSubmitting ? ( 
                 <Loader2 size={18} className="animate-spin" />
               ) : (
                 <Save size={18} />
               )}
-              {isSaving ? 'Saving...' : 'Save Changes'}
+              {isSubmitting ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
       </form>
     </div>
-    // (REMOVED) </main>
-    // (REMOVED) </div>
   );
 };
 

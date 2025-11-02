@@ -12,8 +12,15 @@ import {
   CheckCircle,
   CalendarCheck2,
   Loader2, // Added for loading
+  AlertCircle, // (NEW) For errors
 } from 'lucide-react';
 import { format } from 'date-fns';
+
+// (NEW) React Hook Form Imports
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { reviewSchema } from '../lib/schemas.ts'; // (NEW) Import Zod schema
 
 // Import the real Supabase client and auth hook
 import { supabase } from '../lib/supabaseClient';
@@ -21,6 +28,9 @@ import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
 
 // Import types and data from the central data file
 import type { Hotel, Accommodation, Review } from '../data/data';
+
+// (NEW) Define the form data type from the Zod schema
+type ReviewFormData = z.infer<typeof reviewSchema>;
 
 // --- TYPE DEFINITIONS ---
 // New type to represent the joined data from Supabase
@@ -59,12 +69,8 @@ const StarRatingInput = ({ rating, setRating }: StarRatingInputProps) => (
 type ReviewModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  accommodation: FetchedAccommodation | null; // Use the new type
-  onSubmit: (reviewData: {
-    rating: number;
-    title: string;
-    comment: string;
-  }) => void;
+  accommodation: FetchedAccommodation | null;
+  onSubmit: (reviewData: ReviewFormData) => void; // (NEW) Use ReviewFormData
 };
 
 const ReviewModal = ({
@@ -73,30 +79,44 @@ const ReviewModal = ({
   accommodation,
   onSubmit,
 }: ReviewModalProps) => {
-  // Get the hotel and existing review from the accommodation object
   const hotel = accommodation?.hotels;
   const existingReview = accommodation?.reviews;
 
-  const [rating, setRating] = useState(0);
-  const [title, setTitle] = useState('');
-  const [comment, setComment] = useState('');
+  // (NEW) Setup React Hook Form
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    control,
+    formState: { errors },
+  } = useForm<ReviewFormData>({
+    resolver: zodResolver(reviewSchema),
+    defaultValues: {
+      rating: 0,
+      title: '',
+      comment: '',
+    },
+  });
 
-  // Pre-fill the form if an existing review is passed in
+  // (NEW) Watch the 'rating' value to pass to the StarRatingInput
+  const currentRating = watch('rating');
+
+  // Pre-fill the form when the modal opens
   useEffect(() => {
     if (accommodation) {
-      setRating(existingReview?.rating || 0);
-      setTitle(existingReview?.title || '');
-      setComment(existingReview?.comment || '');
+      reset({
+        rating: existingReview?.rating || 0,
+        title: existingReview?.title || '',
+        comment: existingReview?.comment || '',
+      });
     }
-  }, [accommodation, existingReview]); // (FIX) Added existingReview to dependency array
+  }, [accommodation, existingReview, reset]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (rating === 0) {
-      alert('Please select a rating.');
-      return;
-    }
-    onSubmit({ rating, title, comment });
+  // (NEW) Handle the form submission
+  const handleFormSubmit = (data: ReviewFormData) => {
+    onSubmit(data); // Pass validated data up
   };
 
   if (!isOpen || !accommodation || !hotel) return null;
@@ -116,13 +136,33 @@ const ReviewModal = ({
           </h2>
           <p className="text-gray-600 mb-4">for {hotel.name}</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* ... (Rest of the form JSX is unchanged) ... */}
+          {/* (NEW) Updated form tag */}
+          <form
+            onSubmit={handleSubmit(handleFormSubmit)}
+            className="space-y-4"
+          >
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Your Rating*
               </label>
-              <StarRatingInput rating={rating} setRating={setRating} />
+              {/* (NEW) Controller for the custom StarRatingInput */}
+              <Controller
+                name="rating"
+                control={control}
+                render={({ field }) => (
+                  <StarRatingInput
+                    rating={field.value}
+                    setRating={(value) =>
+                      field.onChange(value)
+                    }
+                  />
+                )}
+              />
+              {errors.rating && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle size={14} /> {errors.rating.message}
+                </p>
+              )}
             </div>
 
             <div>
@@ -135,11 +175,19 @@ const ReviewModal = ({
               <input
                 type="text"
                 id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., 'A wonderful stay'"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${
+                  errors.title
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                {...register('title')}
               />
+              {errors.title && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle size={14} /> {errors.title.message}
+                </p>
+              )}
             </div>
 
             <div>
@@ -151,12 +199,20 @@ const ReviewModal = ({
               </label>
               <textarea
                 id="comment"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
                 rows={5}
                 placeholder="Share your experience..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`w-full px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${
+                  errors.comment
+                    ? 'border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                {...register('comment')}
               />
+              {errors.comment && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                  <AlertCircle size={14} /> {errors.comment.message}
+                </p>
+              )}
             </div>
             <div className="flex justify-end pt-2">
               <button
@@ -230,7 +286,11 @@ const AccommodationCard = ({
               : 'bg-blue-600 text-white hover:bg-blue-700'
           }`}
         >
-          {accommodation.has_reviewed ? <Edit3 size={16} /> : <MessageSquare size={16} />}
+          {accommodation.has_reviewed ? (
+            <Edit3 size={16} />
+          ) : (
+            <MessageSquare size={16} />
+          )}
           {accommodation.has_reviewed ? 'Edit Review' : 'Write a Review'}
         </button>
       </div>
@@ -300,12 +360,8 @@ export const MyAccommodationsPage = () => {
     setSelectedAccommodation(null);
   };
 
-  // --- NEW: Real review submission logic ---
-  const handleSubmitReview = async (reviewData: {
-    rating: number;
-    title: string;
-    comment: string;
-  }) => {
+  // --- (UPDATED) Real review submission logic ---
+  const handleSubmitReview = async (reviewData: ReviewFormData) => {
     if (!selectedAccommodation || !auth?.session?.user) {
       alert('You must be logged in to submit a review.');
       return;
@@ -371,11 +427,6 @@ export const MyAccommodationsPage = () => {
   );
 
   return (
-    // (REMOVED) <div className="bg-gray-100 min-h-screen">
-    // (REMOVED) <Header />
-    // (REMOVED) <main ...>
-    // (REMOVED) Back to Dashboard link
-
     // This component now renders *inside* the ThreeTabSessionShell's <Outlet>
     <div>
       <h1 className="text-3xl font-bold text-gray-900 mb-6 hidden lg:block">
@@ -425,8 +476,6 @@ export const MyAccommodationsPage = () => {
         onSubmit={handleSubmitReview}
       />
     </div>
-    // (REMOVED) </main>
-    // (REMOVED) </div>
   );
 };
 
