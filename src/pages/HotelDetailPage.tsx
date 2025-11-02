@@ -1,6 +1,6 @@
 // src/pages/HotelDetailPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Star, 
@@ -19,7 +19,10 @@ import {
   X,
   MessageSquare,
   Share2,
-  Loader2 // For loading
+  Loader2, // For loading
+  BarChart3, // (NEW) For review histogram
+  AlertCircle, // (NEW) For availability status
+  CheckCircle, // (NEW) For availability status
 } from 'lucide-react';
 
 // --- (NEW) Import Leaflet CSS for the map ---
@@ -33,7 +36,7 @@ import { format, differenceInCalendarDays } from 'date-fns';
 
 // Import the reusable DateRangePicker component
 import { DateRangePicker } from '../components/DateRangePicker';
-import { HotelCard } from '../components/HotelCard'; // --- (NEW) Import HotelCard ---
+import { HotelCard } from '../components/HotelCard'; 
 
 // Import your Supabase client
 import { supabase } from '../lib/supabaseClient';
@@ -47,11 +50,11 @@ import {
 } from '../data/data';
 import type { 
   Hotel, 
-  Room, 
+  Room,
   Review, 
   DateRange, 
   GuestCount,
-  PriceBreakdown // --- (NEW) Import PriceBreakdown ---
+  PriceBreakdown 
 } from '../data/data';
 
 
@@ -155,15 +158,75 @@ const defaultPriceBreakdown: PriceBreakdown = {
   currency: 'INR',
 };
 
+// --- (NEW) CHILD COMPONENT: ReviewSummary ---
+/**
+ * Displays an aggregate rating and histogram for reviews.
+ */
+type ReviewSummaryProps = { reviews: Review[] };
+const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
+  // Calculate average rating and rating distribution
+  const { averageRating, ratingCounts } = useMemo(() => {
+    if (reviews.length === 0) {
+      return { averageRating: 'N/A', ratingCounts: [] };
+    }
+
+    const totalRating = reviews.reduce((acc, r) => acc + r.rating, 0);
+    const avg = (totalRating / reviews.length).toFixed(1);
+
+    const counts = [5, 4, 3, 2, 1].map(star => {
+      const count = reviews.filter(r => r.rating === star).length;
+      const percentage = (count / reviews.length) * 100;
+      return { star, count, percentage };
+    });
+
+    return { averageRating: avg, ratingCounts: counts };
+  }, [reviews]);
+
+  if (reviews.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">Reviews</h3>
+        <p className="text-gray-500">No reviews for this hotel yet.</p>
+        <ReviewForm />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
+      <h3 className="text-xl font-semibold text-gray-800 mb-4">Guest Reviews</h3>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="flex flex-col items-center justify-center bg-blue-600 text-white w-full sm:w-28 h-28 rounded-lg shadow-lg flex-shrink-0">
+          <span className="text-5xl font-bold">{averageRating}</span>
+          <span className="text-sm font-medium">({reviews.length} reviews)</span>
+        </div>
+        <div className="flex-1 w-full space-y-2">
+          {ratingCounts.map(item => (
+            <div key={item.star} className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600 w-12">{item.star} star</span>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="bg-yellow-400 h-2.5 rounded-full" style={{ width: `${item.percentage}%` }}></div>
+              </div>
+              <span className="text-sm text-gray-500 w-10 text-right">{item.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <ReviewForm />
+    </div>
+  );
+};
+
+
 // --- PAGE COMPONENT: HotelDetailPage (UPDATED) ---
 export const HotelDetailPage = () => {
   const { slug } = useParams();
-  const navigate = useNavigate(); // --- (NEW) Use navigate hook ---
+  const navigate = useNavigate(); 
 
   // State for live data
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [similarHotels, setSimilarHotels] = useState<Hotel[]>([]); // --- (NEW) ---
+  const [similarHotels, setSimilarHotels] = useState<Hotel[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
   
   // State for booking panel
@@ -171,7 +234,11 @@ export const HotelDetailPage = () => {
   const [guests, setGuests] = useState<GuestCount>({ adults: 2, children: 0 });
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  // --- (NEW) State for the full price breakdown ---
+  // --- (NEW) State for availability check ---
+  type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
+  const [availabilityStatus, setAvailabilityStatus] = useState<AvailabilityStatus>('idle');
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown>(defaultPriceBreakdown);
 
   // Data fetching logic
@@ -183,6 +250,7 @@ export const HotelDetailPage = () => {
       setHotel(null);
       setReviews([]);
       setSimilarHotels([]);
+      setAvailabilityStatus('idle'); // Reset availability
       
       // 1. Fetch hotel details and its rooms
       const { data: hotelData, error: hotelError } = await supabase
@@ -215,7 +283,7 @@ export const HotelDetailPage = () => {
         setReviews(reviewData as Review[]);
       }
 
-      // --- (NEW) 3. Fetch similar hotels (same city, not this one) ---
+      // 3. Fetch similar hotels (same city, not this one)
       if (hotelData.address?.city) {
         const { data: similarData } = await supabase
           .from('hotels')
@@ -233,17 +301,15 @@ export const HotelDetailPage = () => {
     };
 
     fetchHotelData();
-  }, [slug]); // Re-run if slug changes
+  }, [slug]); 
 
   
-  // --- (NEW) Dynamic Price Calculation Logic ---
+  // Dynamic Price Calculation Logic
   useEffect(() => {
     if (dates.from && dates.to && hotel && selectedRoom) {
-      // Use the room's modifier, default to 1
       const roomModifier = selectedRoom.base_price_modifier || 1;
       const effectiveBasePrice = hotel.base_price * roomModifier;
 
-      // Call the dynamic pricing engine
       const breakdown = calculatePrice(
         effectiveBasePrice,
         dates.from,
@@ -252,7 +318,6 @@ export const HotelDetailPage = () => {
       );
       setPriceBreakdown(breakdown);
     } else {
-      // Reset price if dates are not set
       setPriceBreakdown({
         ...defaultPriceBreakdown,
         base_price_per_night: (hotel?.base_price || 0) * (selectedRoom?.base_price_modifier || 1),
@@ -261,18 +326,72 @@ export const HotelDetailPage = () => {
     }
   }, [dates, hotel, selectedRoom]);
 
+  // --- (UPDATED) REAL Availability Check Logic ---
+  useEffect(() => {
+    // Reset if not enough info
+    if (!dates.from || !dates.to || !selectedRoom || !hotel) {
+      setAvailabilityStatus('idle');
+      return;
+    }
 
-  // --- (NEW) Handle Book Now Click ---
+    // Check if total guests exceeds room capacity
+    const totalGuests = guests.adults + guests.children;
+    if (totalGuests > selectedRoom.capacity) {
+      setAvailabilityStatus('unavailable');
+      setAvailabilityError(`This room only supports ${selectedRoom.capacity} guest(s).`);
+      return;
+    }
+
+    const checkAvailability = async () => {
+      setAvailabilityStatus('checking');
+      setAvailabilityError(null);
+
+      // --- REAL API CALL (replaces mock) ---
+      const { data, error } = await supabase.rpc('check_room_availability', {
+        p_room_id: selectedRoom.id,
+        p_check_in: dates.from!.toISOString().split('T')[0], // Format as 'YYYY-MM-DD'
+        p_check_out: dates.to!.toISOString().split('T')[0],
+      });
+
+      if (error) {
+        console.error("Availability check error:", error);
+        setAvailabilityStatus('error');
+        setAvailabilityError('Could not check availability.');
+      } else if (data === true) {
+        setAvailabilityStatus('available');
+      } else if (data === false) {
+        setAvailabilityStatus('unavailable');
+        setAvailabilityError('This room is not available for the selected dates.');
+      }
+    };
+    
+    // Debounce the check slightly
+    const timer = setTimeout(() => {
+      checkAvailability();
+    }, 500);
+
+    return () => clearTimeout(timer);
+
+  }, [dates, selectedRoom, guests, hotel]);
+
+
+  // Handle Book Now Click
   const handleBookNow = () => {
     if (!hotel || !selectedRoom || !dates.from || !dates.to || priceBreakdown.nights <= 0) {
       alert("Please select dates and a room.");
+      return;
+    }
+    
+    // (NEW) Final check on availability
+    if (availabilityStatus !== 'available') {
+      alert(availabilityError || "This room is not available.");
       return;
     }
 
     // Navigate to the preview page, passing all data in state
     navigate('/booking/preview', {
       state: {
-        hotel: { // Pass a snapshot of the hotel
+        hotel: { 
           id: hotel.id,
           name: hotel.name,
           address: `${hotel.address.street}, ${hotel.address.city}`,
@@ -285,7 +404,7 @@ export const HotelDetailPage = () => {
         check_in: dates.from.toISOString(),
         check_out: dates.to.toISOString(),
         guests: guests,
-        price_breakdown: priceBreakdown, // Pass the full breakdown
+        price_breakdown: priceBreakdown, 
       },
     });
   };
@@ -317,6 +436,43 @@ export const HotelDetailPage = () => {
   
   // --- Render page with fetched data ---
   const { nights, subtotal, taxes, service_fee, total, base_price_per_night } = priceBreakdown;
+
+  // (NEW) Helper component for availability status
+  const AvailabilityStatusMessage = () => {
+    if (availabilityStatus === 'checking') {
+      return (
+        <div className="flex items-center justify-center gap-2 text-sm text-blue-600">
+          <Loader2 size={16} className="animate-spin" />
+          Checking availability...
+        </div>
+      );
+    }
+    if (availabilityStatus === 'available') {
+      return (
+        <div className="flex items-center justify-center gap-2 text-sm text-green-600">
+          <CheckCircle size={16} />
+          This room is available!
+        </div>
+      );
+    }
+    if (availabilityStatus === 'unavailable') {
+      return (
+        <div className="flex items-center justify-center gap-2 text-sm text-red-600 text-center">
+          <AlertCircle size={16} />
+          {availabilityError || 'Unavailable for selected dates.'}
+        </div>
+      );
+    }
+    if (availabilityStatus === 'error') {
+       return (
+        <div className="flex items-center justify-center gap-2 text-sm text-red-600 text-center">
+          <AlertCircle size={16} />
+          {availabilityError || 'Error checking availability.'}
+        </div>
+      );
+    }
+    return <p className="text-center text-gray-500">Select dates to check price & availability</p>;
+  };
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -380,7 +536,7 @@ export const HotelDetailPage = () => {
               </div>
             </div>
 
-            {/* --- (NEW) Map --- */}
+            {/* Map */}
             {hotel.address?.lat && hotel.address?.lng && (
               <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
                 <h3 className="text-xl font-semibold text-gray-800 mb-4">Location</h3>
@@ -403,35 +559,38 @@ export const HotelDetailPage = () => {
               </div>
             )}
 
-            {/* Reviews */}
-            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">Reviews</h3>
-              {reviews.length > 0 ? (
-                reviews.map(review => (
-                  <div key={review.id} className="border-b border-gray-200 pb-4 mb-4 last:border-b-0 last:mb-0">
-                    <div className="flex items-center mb-2">
-                      <img src={review.user_avatar || 'https://placehold.co/40x40'} alt={review.user_name} className="w-10 h-10 rounded-full" />
-                      <div className="ml-3">
-                        <p className="font-semibold text-gray-800">{review.user_name || 'Anonymous'}</p>
-                        <p className="text-xs text-gray-500">{format(new Date(review.created_at!), 'dd MMM yyyy')}</p>
+            {/* --- (NEW) Reviews Section with Summary --- */}
+            <ReviewSummary reviews={reviews} />
+            
+            {/* Individual Reviews (if any exist) */}
+            {reviews.length > 0 && (
+              <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">What guests are saying</h3>
+                <div className="space-y-4">
+                  {reviews.map(review => (
+                    <div key={review.id} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                      <div className="flex items-center mb-2">
+                        <img src={review.user_avatar || 'https://placehold.co/40x40'} alt={review.user_name} className="w-10 h-10 rounded-full" />
+                        <div className="ml-3">
+                          <p className="font-semibold text-gray-800">{review.user_name || 'Anonymous'}</p>
+                          <p className="text-xs text-gray-500">{format(new Date(review.created_at!), 'dd MMM yyyy')}</p>
+                        </div>
                       </div>
+                      <div className="flex items-center gap-1 text-yellow-500 mb-1">
+                        {Array.from({ length: review.rating }).map((_, i) => (
+                          <Star size={16} fill="currentColor" key={i} />
+                        ))}
+                      </div>
+                      <h5 className="font-semibold text-gray-800">{review.title}</h5>
+                      <p className="text-gray-600 text-sm mt-1">{review.comment}</p>
                     </div>
-                    <div className="flex items-center gap-1 text-yellow-500 mb-1">
-                      {Array.from({ length: review.rating }).map((_, i) => (
-                        <Star size={16} fill="currentColor" key={i} />
-                      ))}
-                    </div>
-                    <h5 className="font-semibold text-gray-800">{review.title}</h5>
-                    <p className="text-gray-600 text-sm mt-1">{review.comment}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500">No reviews for this hotel yet.</p>
-              )}
-              <ReviewForm />
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* --- (NEW) Similar Hotels --- */}
+
+            {/* Similar Hotels */}
             {similarHotels.length > 0 && (
               <div className="mt-8">
                 <h3 className="text-2xl font-semibold text-gray-800 mb-4">Similar Stays in {hotel.address.city}</h3>
@@ -472,19 +631,17 @@ export const HotelDetailPage = () => {
                   </select>
                 </div>
 
-                {/* --- (UPDATED) Price Preview --- */}
-                {nights > 0 ? (
-                  <div className="pt-4 border-t border-gray-200">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-2">Price Breakdown</h4>
+                {/* Price Preview */}
+                <div className="pt-4 border-t border-gray-200">
+                  {nights > 0 ? (
                     <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-600">{formatCurrency(base_price_per_night, hotel.currency, 0)} x {nights} night(s)</span>
                         <span className="text-gray-800">{formatCurrency(subtotal, hotel.currency, 0)}</span>
                       </div>
-                      {/* (NEW) Show seasonal adjustment if it exists */}
                       {priceBreakdown.seasonal_mod !== 0 && (
                          <div className="flex justify-between">
-                          <span className="text-gray-600">Seasonal adjustment</span>
+                          <span className="text-gray-600">Adjustments</span>
                           <span className="text-gray-800">
                             {priceBreakdown.seasonal_mod > 0 ? '+' : ''}
                             {formatCurrency(priceBreakdown.seasonal_mod, hotel.currency, 0)}
@@ -500,18 +657,25 @@ export const HotelDetailPage = () => {
                         <span className="text-xl font-bold text-blue-600">{formatCurrency(total, hotel.currency, 0)}</span>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-500 pt-4">Select dates to see price</p>
-                )}
+                  ) : (
+                    <p className="text-center text-gray-500 pt-2">Select dates to see price</p>
+                  )}
+                </div>
 
-                <button 
-                  disabled={nights <= 0 || !selectedRoom}
-                  className="w-full bg-blue-600 text-white p-3.5 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  onClick={handleBookNow} // --- (UPDATED) ---
-                >
-                  Book Now
-                </button>
+                {/* (NEW) Availability Status & Book Button */}
+                <div className="pt-4 border-t border-gray-200 space-y-3">
+                  <div className="h-6 text-center">
+                    <AvailabilityStatusMessage />
+                  </div>
+                  <button 
+                    disabled={availabilityStatus !== 'available'}
+                    className="w-full bg-blue-600 text-white p-3.5 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    onClick={handleBookNow} 
+                  >
+                    {availabilityStatus === 'checking' ? 'Checking...' : 'Book Now'}
+                  </button>
+                </div>
+                
               </div>
             </div>
           </div>
