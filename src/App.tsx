@@ -26,7 +26,7 @@ import { MyAccommodationsPage } from './pages/MyAccomodationsPage';
 
 // --- (NEW) Import new pages ---
 
-import { CreatePasswordPage } from './pages/CreatePasswordPage';
+
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 
 // Import the session shell layout
@@ -173,8 +173,7 @@ function App() {
               
               {/* (NEW) Route for setting password after magic link signup */}
               {/* It must be protected because the user is logged in via the link */}
-              <Route path="create-password" element={<CreatePasswordPage />} />
-
+              
               <Route path="booking/preview" element={<BookingPreviewPage />} />
               <Route path="booking/confirmation/:ref" element={<BookingConfirmationPage />} />
 
