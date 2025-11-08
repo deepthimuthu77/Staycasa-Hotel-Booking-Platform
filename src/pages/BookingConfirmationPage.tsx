@@ -1,6 +1,6 @@
 // src/pages/BookingConfirmationPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   useParams,
   useNavigate, // (NEW) For navigation
@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import jsPDF from 'jspdf'; // (NEW) Import jsPDF for downloading
+
+// (NEW) Import React Query
+import { useQuery } from '@tanstack/react-query';
 
 // (NEW) Import Supabase client
 import { supabase } from '../lib/supabaseClient';
@@ -69,53 +72,48 @@ const BookingInfoRow = ({ icon, label, value }: BookingInfoRowProps) => (
   </div>
 );
 
+// --- (NEW) Data Fetching Function ---
+const fetchBookingByRef = async (ref: string) => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(
+      `
+      *,
+      hotels (*)
+    `
+    )
+    .eq('booking_reference', ref)
+    .single(); // We expect only one booking
+
+  if (error) {
+    throw new Error('Could not find your booking. Please check the reference.');
+  }
+  return data as FetchedBooking;
+};
+
 // --- PAGE COMPONENT: BookingConfirmationPage (UPDATED) ---
 /**
  * "Success" screen after booking.
- * Now fetches live data based on the URL parameter.
+ * Now fetches live data based on the URL parameter using React Query.
  */
 export const BookingConfirmationPage = () => {
   const { ref } = useParams(); // Get the booking_reference from the URL
   const navigate = useNavigate();
 
-  const [booking, setBooking] = useState<FetchedBooking | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // (REMOVED) useState for booking, isLoading, and error
 
-  // (NEW) Fetch the booking data on load
-  useEffect(() => {
-    if (!ref) {
-      setError('No booking reference provided.');
-      setIsLoading(false);
-      return;
-    }
-
-    const fetchBooking = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(
-          `
-          *,
-          hotels (*)
-        `
-        )
-        .eq('booking_reference', ref)
-        .single(); // We expect only one booking
-
-      if (error) {
-        console.error('Error fetching booking:', error);
-        setError('Could not find your booking. Please check the reference.');
-      } else if (data) {
-        setBooking(data as FetchedBooking);
-      }
-      setIsLoading(false);
-    };
-
-    fetchBooking();
-  }, [ref]); // Re-run if the 'ref' changes
+  // --- (NEW) Fetch the booking data on load with React Query ---
+  const { 
+    data: booking, 
+    isLoading, 
+    isError, 
+    error 
+  } = useQuery({
+    queryKey: ['booking', ref],
+    queryFn: () => fetchBookingByRef(ref!),
+    enabled: !!ref, // Only run query if 'ref' exists
+    retry: false, // Don't retry if booking isn't found
+  });
 
   // --- (NEW) Action Handlers ---
   const handleShare = () => {
@@ -199,7 +197,7 @@ export const BookingConfirmationPage = () => {
   }
 
   // --- Render Error State ---
-  if (error || !booking) {
+  if (isError || !booking) {
     return (
       <div className="bg-gray-100 min-h-screen">
         <Header />
@@ -209,7 +207,7 @@ export const BookingConfirmationPage = () => {
             <h1 className="text-2xl font-bold text-gray-900 mt-4">
               Booking Not Found
             </h1>
-            <p className="text-lg text-gray-600 mt-1">{error}</p>
+            <p className="text-lg text-gray-600 mt-1">{error?.message || 'No booking reference was provided.'}</p>
             <button
               onClick={() => navigate('/')}
               className="mt-6 flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"

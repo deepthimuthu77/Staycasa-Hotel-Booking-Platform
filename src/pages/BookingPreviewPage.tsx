@@ -15,6 +15,9 @@ import {
 import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { useNavigate, useLocation } from 'react-router-dom';
 
+// (NEW) React Query Imports
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+
 // (NEW) React Hook Form Imports
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -82,19 +85,19 @@ export const BookingPreviewPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const auth = useAuth();
+  const queryClient = useQueryClient(); // (NEW)
 
   // Get booking data from router state
   const bookingData = location.state as BookingPreview | null;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // (REMOVED) isBooking state
   const [pendingBooking, setPendingBooking] = useState<Booking | null>(null);
 
   // (NEW) Setup React Hook Form
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting }, // (NEW) Replaces isBooking
+    formState: { errors }, 
   } = useForm<BookingPreviewFormData>({
     resolver: zodResolver(bookingPreviewSchema),
     defaultValues: {
@@ -127,24 +130,19 @@ export const BookingPreviewPage = () => {
   const checkOutDate = parseISO(bookingData.check_out);
   const nights = differenceInCalendarDays(checkOutDate, checkInDate);
 
-  // --- (UPDATED) Real Booking Creation ---
-  // (NEW) Now wrapped by handleSubmit, receives validated formData
-  const handleBookNow = async (formData: BookingPreviewFormData) => {
-    if (!auth?.session?.user) {
-      alert('Please log in to make a booking.');
-      navigate('/login');
-      return;
-    }
-    // (REMOVED) setIsBooking(true);
-
-    try {
+  // --- (NEW) Mutation for creating the 'pending' booking ---
+  const createBookingMutation = useMutation({
+    mutationFn: async (formData: BookingPreviewFormData) => {
+      if (!auth?.session?.user) {
+        throw new Error('Please log in to make a booking.');
+      }
+      
       const newBookingRef = generateBookingReference();
 
-      // 1. Create the booking object to insert (using real data)
+      // 1. Create the booking object to insert
       const bookingToInsert = {
         user_id: auth.session.user.id,
         hotel_id: bookingData.hotel.id,
-        // room_id: null,
         check_in: bookingData.check_in.split('T')[0], // Format as 'YYYY-MM-DD'
         check_out: bookingData.check_out.split('T')[0],
         nights: nights,
@@ -153,7 +151,7 @@ export const BookingPreviewPage = () => {
         currency: bookingData.price_breakdown.currency,
         status: 'pending',
         booking_reference: newBookingRef,
-        special_requests: formData.special_requests || null, // (NEW) Add special requests
+        special_requests: formData.special_requests || null,
       };
 
       // 2. Insert into Supabase
@@ -164,25 +162,29 @@ export const BookingPreviewPage = () => {
         .single();
 
       if (error) throw error;
-
+      return data as Booking;
+    },
+    onSuccess: (data) => {
       // 3. Save the created booking and open the modal
-      setPendingBooking(data as Booking);
+      setPendingBooking(data);
       setIsModalOpen(true);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('Error creating booking:', error);
-      alert('Error: Could not start the booking process. Please try again.');
+      alert('Error: Could not start the booking process. ' + error.message);
+      if (error.message.includes('log in')) {
+        navigate('/login');
+      }
     }
-    // (REMOVED) finally { setIsBooking(false); }
-  };
+  });
 
-  // --- Real Payment Confirmation ---
-  const handlePaymentSuccess = async (paymentMeta: object) => {
-    if (!pendingBooking) {
-      alert('Error: No pending booking found.');
-      return;
-    }
+  // --- (NEW) Mutation for confirming the payment ---
+  const confirmPaymentMutation = useMutation({
+    mutationFn: async (paymentMeta: object) => {
+      if (!pendingBooking) {
+        throw new Error('Error: No pending booking found.');
+      }
 
-    try {
       // 1. Update the booking status to 'confirmed'
       const { data, error } = await supabase
         .from('bookings')
@@ -197,23 +199,36 @@ export const BookingPreviewPage = () => {
 
       if (error) throw error;
 
-      // 2. --- (NEW) Trigger the backend function to send the email ---
+      // 2. Trigger the backend function to send the email
       await supabase.functions.invoke('send-confirmation-email', {
         body: { booking_id: data.id },
       });
-
-      // 3. Close modal and navigate to confirmation page
+      
+      return data as Booking;
+    },
+    onSuccess: (data) => {
+      // 3. Invalidate 'bookings' query to refresh "My Bookings" page
+      queryClient.invalidateQueries({ queryKey: ['bookings', auth?.session?.user?.id] });
+      
+      // 4. Close modal and navigate to confirmation page
       setIsModalOpen(false);
       navigate(`/booking/confirmation/${data.booking_reference}`);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error('Error confirming payment or sending email:', error);
       alert(
         'Payment was successful but we failed to send your confirmation email. Please contact support.'
       );
+      // Still navigate to confirmation, as payment was successful
       if (pendingBooking) {
         navigate(`/booking/confirmation/${pendingBooking.booking_reference}`);
       }
     }
+  });
+
+  // (NEW) Wrapper function to satisfy React Hook Form's handleSubmit
+  const onFormSubmit = (formData: BookingPreviewFormData) => {
+    createBookingMutation.mutate(formData);
   };
 
   const handlePaymentFailure = () => {
@@ -225,8 +240,8 @@ export const BookingPreviewPage = () => {
     <div className="bg-gray-100 min-h-screen">
       <Header />
       <main className="container mx-auto max-w-7xl p-4 mt-6">
-        {/* (NEW) Form tag wraps the content grid */}
-        <form onSubmit={handleSubmit(handleBookNow)}>
+        {/* (NEW) Form tag now calls onFormSubmit */}
+        <form onSubmit={handleSubmit(onFormSubmit)}>
           <a
             href="/"
             className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600 mb-4"
@@ -334,10 +349,10 @@ export const BookingPreviewPage = () => {
             <div className="lg:col-span-1">
               <BookingSummary
                 priceBreakdown={bookingData.price_breakdown}
-                // (NEW) Trigger form submission
-                onBookNow={handleSubmit(handleBookNow)}
-                // (NEW) Use form state for loading
-                isLoading={isSubmitting}
+                // (NEW) Trigger form submission, which triggers the mutation
+                onBookNow={handleSubmit(onFormSubmit)}
+                // (NEW) Use mutation's loading state
+                isLoading={createBookingMutation.isPending}
               />
             </div>
           </div>
@@ -348,7 +363,8 @@ export const BookingPreviewPage = () => {
         <MockPaymentModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onPaymentSuccess={handlePaymentSuccess}
+          // (NEW) Call the payment confirmation mutation
+          onPaymentSuccess={(paymentMeta) => confirmPaymentMutation.mutate(paymentMeta)}
           onPaymentFailure={handlePaymentFailure}
           booking={pendingBooking}
         />

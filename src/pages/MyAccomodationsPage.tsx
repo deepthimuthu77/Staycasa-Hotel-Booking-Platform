@@ -16,6 +16,9 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 
+// (NEW) React Query Imports
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 // (NEW) React Hook Form Imports
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -70,7 +73,8 @@ type ReviewModalProps = {
   isOpen: boolean;
   onClose: () => void;
   accommodation: FetchedAccommodation | null;
-  onSubmit: (reviewData: ReviewFormData) => void; // (NEW) Use ReviewFormData
+  onSubmit: (reviewData: ReviewFormData) => void; 
+  isPending: boolean; // (NEW) To show loading state
 };
 
 const ReviewModal = ({
@@ -78,6 +82,7 @@ const ReviewModal = ({
   onClose,
   accommodation,
   onSubmit,
+  isPending, // (NEW)
 }: ReviewModalProps) => {
   const hotel = accommodation?.hotels;
   const existingReview = accommodation?.reviews;
@@ -87,7 +92,6 @@ const ReviewModal = ({
     register,
     handleSubmit,
     reset,
-    setValue,
     watch,
     control,
     formState: { errors },
@@ -116,7 +120,7 @@ const ReviewModal = ({
 
   // (NEW) Handle the form submission
   const handleFormSubmit = (data: ReviewFormData) => {
-    onSubmit(data); // Pass validated data up
+    onSubmit(data); // Pass validated data up to the mutation
   };
 
   if (!isOpen || !accommodation || !hotel) return null;
@@ -145,7 +149,6 @@ const ReviewModal = ({
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Your Rating*
               </label>
-              {/* (NEW) Controller for the custom StarRatingInput */}
               <Controller
                 name="rating"
                 control={control}
@@ -217,9 +220,11 @@ const ReviewModal = ({
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+                disabled={isPending} // (NEW) Use loading state
+                className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center justify-center gap-2"
               >
-                Submit Review
+                {isPending && <Loader2 size={18} className="animate-spin" />}
+                {isPending ? 'Submitting...' : 'Submit Review'}
               </button>
             </div>
           </form>
@@ -239,11 +244,10 @@ const AccommodationCard = ({
   accommodation,
   onWriteReview,
 }: AccommodationCardProps) => {
-  // Get hotel and review data from the joined accommodation object
+  // (No changes to this component's logic)
   const hotel = accommodation.hotels;
   const existingReview = accommodation.reviews;
 
-  // Safety check if the hotel join failed
   if (!hotel) {
     return (
       <div className="bg-white rounded-xl shadow-md p-5 text-red-600">
@@ -298,6 +302,25 @@ const AccommodationCard = ({
   );
 };
 
+// --- (NEW) Data Fetching Function ---
+const fetchAccommodations = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('accommodations')
+    .select(
+      `
+      *,
+      hotels (*),
+      reviews (*)
+    `
+    )
+    .eq('user_id', userId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data as FetchedAccommodation[];
+};
+
 // --- PAGE COMPONENT: MyAccommodationsPage (UPDATED) ---
 /**
  * Shows hotels the user has visited and allows them to manage reviews.
@@ -307,48 +330,21 @@ export const MyAccommodationsPage = () => {
   const [activeTab, setActiveTab] = useState<Tab>('all');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // --- NEW: State for live data ---
-  const [accommodations, setAccommodations] = useState<FetchedAccommodation[]>(
-    []
-  );
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedAccommodation, setSelectedAccommodation] =
     useState<FetchedAccommodation | null>(null);
+  
   const auth = useAuth(); // Get the real user session
+  const queryClient = useQueryClient(); // (NEW)
 
-  // --- NEW: Data fetching logic ---
-  const fetchAccommodations = async () => {
-    if (!auth?.session?.user) {
-      setIsLoading(false);
-      return; // Not logged in
-    }
+  // --- (NEW) Data fetching logic with React Query ---
+  const accommodationsQuery = useQuery({
+    queryKey: ['accommodations', auth?.session?.user?.id],
+    queryFn: () => fetchAccommodations(auth!.session!.user!.id),
+    enabled: !!auth?.session?.user, // Only run if user is logged in
+  });
 
-    setIsLoading(true);
-
-    // Fetch accommodations and join related hotel AND review data
-    const { data, error } = await supabase
-      .from('accommodations')
-      .select(
-        `
-        *,
-        hotels (*),
-        reviews (*)
-      `
-      )
-      .eq('user_id', auth.session.user.id);
-
-    if (error) {
-      console.error('Error fetching accommodations:', error);
-    } else {
-      setAccommodations(data as FetchedAccommodation[]);
-    }
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    fetchAccommodations();
-  }, [auth?.session]); // Re-fetch if auth state changes
+  const accommodations = accommodationsQuery.data ?? [];
+  const isLoading = accommodationsQuery.isLoading;
 
   const handleOpenReviewModal = (accommodation: FetchedAccommodation) => {
     setSelectedAccommodation(accommodation);
@@ -360,20 +356,18 @@ export const MyAccommodationsPage = () => {
     setSelectedAccommodation(null);
   };
 
-  // --- (UPDATED) Real review submission logic ---
-  const handleSubmitReview = async (reviewData: ReviewFormData) => {
-    if (!selectedAccommodation || !auth?.session?.user) {
-      alert('You must be logged in to submit a review.');
-      return;
-    }
-
-    try {
+  // --- (NEW) Real review submission mutation ---
+  const reviewMutation = useMutation({
+    mutationFn: async (reviewData: ReviewFormData) => {
+      if (!selectedAccommodation || !auth?.session?.user) {
+        throw new Error('You must be logged in to submit a review.');
+      }
+  
       // 1. Upsert (create or update) the review
-      //    'upsert' is perfect for "edit review" functionality
       const { data: review, error: reviewError } = await supabase
         .from('reviews')
         .upsert({
-          id: selectedAccommodation.review_id || undefined, // Update existing if id is present
+          id: selectedAccommodation.review_id || undefined, 
           user_id: auth.session.user.id,
           hotel_id: selectedAccommodation.hotel_id,
           rating: reviewData.rating,
@@ -382,9 +376,9 @@ export const MyAccommodationsPage = () => {
         })
         .select()
         .single();
-
+  
       if (reviewError) throw reviewError;
-
+  
       // 2. Update the 'accommodations' table to link the review
       const { error: accError } = await supabase
         .from('accommodations')
@@ -393,17 +387,24 @@ export const MyAccommodationsPage = () => {
           review_id: review.id,
         })
         .eq('id', selectedAccommodation.id);
-
+  
       if (accError) throw accError;
-
-      // 3. Close modal and refresh data
+    },
+    onSuccess: () => {
       alert('Review submitted successfully!');
       handleCloseReviewModal();
-      fetchAccommodations(); // Refresh the list
-    } catch (error) {
+      // (NEW) Invalidate the query to refetch the list
+      queryClient.invalidateQueries({ queryKey: ['accommodations', auth?.session?.user?.id] });
+    },
+    onError: (error: Error) => {
       console.error('Error submitting review:', error);
-      alert('Failed to submit review. Please try again.');
+      alert('Failed to submit review. ' + error.message);
     }
+  });
+
+  // (NEW) Wrapper function to pass to the modal
+  const handleSubmitReview = (reviewData: ReviewFormData) => {
+    reviewMutation.mutate(reviewData);
   };
 
   const filteredAccommodations = accommodations.filter((acc) => {
@@ -474,6 +475,7 @@ export const MyAccommodationsPage = () => {
         onClose={handleCloseReviewModal}
         accommodation={selectedAccommodation}
         onSubmit={handleSubmitReview}
+        isPending={reviewMutation.isPending} // (NEW) Pass loading state
       />
     </div>
   );

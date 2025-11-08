@@ -23,6 +23,9 @@ import {
 } from 'date-fns';
 import jsPDF from 'jspdf'; // (NEW) Import jsPDF for downloading
 
+// (NEW) React Query Imports
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 // Import the real Supabase client and auth hook
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../App'; // Make sure useAuth is exported from App.tsx
@@ -42,6 +45,7 @@ type FetchedBooking = Omit<Booking, 'hotel'> & {
 };
 
 // --- (NEW) Centralized PDF Download Logic ---
+// (No changes to this function)
 const downloadBookingPDF = (booking: FetchedBooking) => {
   const { hotels: hotel } = booking;
   if (!hotel) {
@@ -107,18 +111,19 @@ const downloadBookingPDF = (booking: FetchedBooking) => {
 };
 
 // --- CHILD COMPONENT: BookingCard (UPDATED) ---
+// (No changes to this component)
 type BookingCardProps = {
   booking: FetchedBooking;
   statusType: BookingStatus;
   onCancel: (bookingId: string) => void;
-  onDownload: (booking: FetchedBooking) => void; // (NEW) Add prop
+  onDownload: (booking: FetchedBooking) => void; 
 };
 
 const BookingCard = ({
   booking,
   statusType,
   onCancel,
-  onDownload, // (NEW) Destructure prop
+  onDownload, 
 }: BookingCardProps) => {
   const {
     hotels: hotel,
@@ -262,7 +267,6 @@ const BookingCard = ({
             Contact Hotel
           </button>
 
-          {/* (NEW) Hook up the download button */}
           <button
             onClick={() => onDownload(booking)}
             className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-gray-200"
@@ -276,52 +280,48 @@ const BookingCard = ({
   );
 };
 
+// --- (NEW) Data Fetching Function ---
+const fetchBookingsQuery = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(
+      `
+      *,
+      hotels (*)
+    `
+    )
+    .eq('user_id', userId)
+    .order('check_in', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data as FetchedBooking[];
+};
+
 // --- PAGE COMPONENT: MyBookingsPage (UPDATED) ---
 export const MyBookingsPage = () => {
   type Tab = 'upcoming' | 'ongoing' | 'past' | 'cancelled';
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
 
-  const [bookings, setBookings] = useState<FetchedBooking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isCancelling, setIsCancelling] = useState(false);
+  // (REMOVED) bookings and isLoading states
+  // (REMOVED) isCancelling state
+  
   const auth = useAuth();
+  const queryClient = useQueryClient(); // (NEW)
 
-  // --- Data fetching logic ---
-  const fetchBookings = async () => {
-    if (!auth?.session?.user) {
-      setIsLoading(false);
-      return;
-    }
+  // --- (NEW) Data fetching logic with React Query ---
+  const { data: bookings = [], isLoading } = useQuery({
+    queryKey: ['bookings', auth?.session?.user?.id],
+    queryFn: () => fetchBookingsQuery(auth!.session!.user!.id),
+    enabled: !!auth?.session?.user, // Only run if user is logged in
+  });
 
-    setIsLoading(true);
+  // (REMOVED) useEffect for fetching bookings
 
-    const { data, error } = await supabase
-      .from('bookings')
-      .select(
-        `
-        *,
-        hotels (*)
-      `
-      )
-      .eq('user_id', auth.session.user.id)
-      .order('check_in', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching bookings:', error);
-    } else {
-      setBookings(data as FetchedBooking[]);
-    }
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    fetchBookings();
-  }, [auth?.session]);
-
-  // --- Cancel Booking Handler ---
-  const handleCancelBooking = async (bookingId: string) => {
-    setIsCancelling(true);
-    try {
+  // --- (NEW) Cancel Booking Mutation ---
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
@@ -329,22 +329,18 @@ export const MyBookingsPage = () => {
         .select()
         .single();
 
-      if (error) throw error;
-
-      setBookings((currentBookings) =>
-        currentBookings.map((b) =>
-          b.id === bookingId ? { ...b, status: 'cancelled' } : b
-        )
-      );
-
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
       alert('Booking cancelled successfully.');
-    } catch (error) {
+      // (NEW) Invalidate the bookings query to refetch data
+      queryClient.invalidateQueries({ queryKey: ['bookings', auth?.session?.user?.id] });
+    },
+    onError: (error) => {
       console.error('Error cancelling booking:', error);
       alert('Failed to cancel booking. Please try again.');
-    } finally {
-      setIsCancelling(false);
-    }
-  };
+    },
+  });
 
   const getBookingStatus = (booking: FetchedBooking): BookingStatus => {
     if (booking.status === 'cancelled') return 'cancelled';
@@ -396,8 +392,8 @@ export const MyBookingsPage = () => {
     }
     return (
       <div className="space-y-6 relative">
-        {/* Loading overlay for cancelling */}
-        {isCancelling && (
+        {/* (NEW) Loading overlay for cancelling */}
+        {cancelBookingMutation.isPending && (
           <div className="absolute inset-0 bg-white bg-opacity-70 flex justify-center items-center z-10 rounded-lg">
             <Loader2 size={32} className="animate-spin text-blue-600" />
           </div>
@@ -407,8 +403,8 @@ export const MyBookingsPage = () => {
             key={booking.id}
             booking={booking}
             statusType={activeTab}
-            onCancel={handleCancelBooking}
-            onDownload={downloadBookingPDF} // (NEW) Pass handler function
+            onCancel={cancelBookingMutation.mutate} // (NEW) Pass mutation function
+            onDownload={downloadBookingPDF} 
           />
         ))}
       </div>

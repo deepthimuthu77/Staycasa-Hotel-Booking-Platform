@@ -25,6 +25,9 @@ import {
   CheckCircle, // For availability status
 } from 'lucide-react';
 
+// (NEW) React Query Imports
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 // (NEW) React Hook Form Imports
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -162,12 +165,10 @@ const defaultPriceBreakdown: PriceBreakdown = {
 };
 
 // --- (NEW) CHILD COMPONENT: ReviewSummary ---
-/**
- * Displays an aggregate rating and histogram for reviews.
- */
+// (No changes to this component)
 type ReviewSummaryProps = { reviews: Review[] };
 const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
-  // Calculate average rating and rating distribution
+  // ... (JSX is unchanged)
   const { averageRating, ratingCounts } = useMemo(() => {
     if (reviews.length === 0) {
       return { averageRating: 'N/A', ratingCounts: [] };
@@ -190,7 +191,6 @@ const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
       <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
         <h3 className="text-xl font-semibold text-gray-800 mb-4">Reviews</h3>
         <p className="text-gray-500">No reviews for this hotel yet.</p>
-        {/* The ReviewForm is now rendered outside this component */}
       </div>
     );
   }
@@ -221,7 +221,7 @@ const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
 
 
 // --- (NEW) CHILD COMPONENT: StarRatingInput ---
-// (Copied from MyAccomodationsPage)
+// (No changes to this component)
 type StarRatingInputProps = {
   rating: number;
   setRating: (rating: number) => void;
@@ -245,16 +245,17 @@ const StarRatingInput = ({ rating, setRating }: StarRatingInputProps) => (
   </div>
 );
 
-// --- (NEW) CHILD COMPONENT: ReviewForm ---
+// --- (UPDATED) CHILD COMPONENT: ReviewForm ---
 /**
- * A fully functional review form using React Hook Form.
+ * A fully functional review form using React Hook Form and React Query.
  */
 type ReviewFormProps = {
   hotelId: string;
-  onReviewSubmit: (newReview: Review) => void;
+  onReviewSubmit: () => void; // (NEW) Changed to just be a success trigger
 };
 const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
   const auth = useAuth();
+  const queryClient = useQueryClient(); // (NEW)
   
   // (NEW) Setup React Hook Form
   const {
@@ -262,7 +263,7 @@ const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
     handleSubmit,
     reset,
     control,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<ReviewFormData>({
     resolver: zodResolver(reviewSchema),
     defaultValues: {
@@ -272,17 +273,16 @@ const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
     },
   });
 
-  const handleFormSubmit = async (data: ReviewFormData) => {
-    if (!auth.session?.user) {
-      alert("You must be logged in to submit a review.");
-      return;
-    }
-    
-    try {
+  // (NEW) Mutation for submitting the review
+  const reviewMutation = useMutation({
+    mutationFn: async (data: ReviewFormData) => {
+      if (!auth.session?.user) {
+        throw new Error("You must be logged in to submit a review.");
+      }
+      
       const newReviewData = {
         hotel_id: hotelId,
         user_id: auth.session.user.id,
-        // (NEW) Add user details from session/profile (if available)
         user_name: auth.session.user.user_metadata?.full_name || 'Anonymous',
         user_avatar: auth.session.user.user_metadata?.avatar_url || null,
         ...data,
@@ -296,17 +296,25 @@ const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
         .single();
       
       if (error) throw error;
-      
-      // 2. Pass the new review up to the parent to update the UI
-      onReviewSubmit(insertedReview as Review);
-      
+      return insertedReview as Review;
+    },
+    onSuccess: () => {
+      // 2. Invalidate the reviews query to refetch
+      queryClient.invalidateQueries({ queryKey: ['reviews', hotelId] });
       // 3. Reset the form
       reset();
-
-    } catch (error: any) {
+      // 4. Call parent callback
+      onReviewSubmit();
+    },
+    onError: (error: Error) => {
       console.error("Error submitting review:", error);
       alert("Failed to submit review: " + error.message);
     }
+  });
+
+  // (NEW) Wrapper for form submit
+  const handleFormSubmit = (data: ReviewFormData) => {
+    reviewMutation.mutate(data);
   };
 
   return (
@@ -317,7 +325,6 @@ const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Your Rating*
           </label>
-          {/* (NEW) Controller for the custom StarRatingInput */}
           <Controller
             name="rating"
             control={control}
@@ -387,16 +394,63 @@ const ReviewForm = ({ hotelId, onReviewSubmit }: ReviewFormProps) => {
         <div className="flex justify-end pt-2">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={reviewMutation.isPending}
             className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center gap-2"
           >
-            {isSubmitting && <Loader2 size={18} className="animate-spin" />}
-            {isSubmitting ? 'Submitting...' : 'Submit Review'}
+            {reviewMutation.isPending && <Loader2 size={18} className="animate-spin" />}
+            {reviewMutation.isPending ? 'Submitting...' : 'Submit Review'}
           </button>
         </div>
       </form>
     </div>
   );
+};
+
+
+// --- (NEW) Data Fetching Functions ---
+
+const fetchHotelBySlug = async (slug: string) => {
+  const { data, error } = await supabase
+    .from('hotels')
+    .select(`
+      *,
+      rooms (*)
+    `)
+    .eq('slug', slug)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Hotel;
+};
+
+const fetchReviewsForHotel = async (hotelId: string) => {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('*')
+    .eq('hotel_id', hotelId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as Review[];
+};
+
+const fetchSimilarHotels = async (city: string, hotelId: string) => {
+  const { data, error } = await supabase
+    .from('hotels')
+    .select('*')
+    .eq('address->>city', city) 
+    .neq('id', hotelId)
+    .limit(3); 
+  if (error) throw new Error(error.message);
+  return data as Hotel[];
+};
+
+const checkAvailability = async (roomId: string, from: Date, to: Date) => {
+  const { data, error } = await supabase.rpc('check_room_availability', {
+    p_room_id: roomId,
+    p_check_in: from.toISOString().split('T')[0], 
+    p_check_out: to.toISOString().split('T')[0],
+  });
+  if (error) throw new Error(error.message);
+  return data as boolean;
 };
 
 
@@ -406,12 +460,8 @@ export const HotelDetailPage = () => {
   const navigate = useNavigate(); 
   const auth = useAuth(); // (NEW) Get auth state
 
-  // State for live data
-  const [hotel, setHotel] = useState<Hotel | null>(null);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [similarHotels, setSimilarHotels] = useState<Hotel[]>([]); 
-  const [isLoading, setIsLoading] = useState(true);
-
+  // (REMOVED) State for hotel, reviews, similarHotels, isLoading
+  
   // (NEW) State to track if the current user has already reviewed
   const [userReview, setUserReview] = useState<Review | null>(null);
   
@@ -420,75 +470,76 @@ export const HotelDetailPage = () => {
   const [guests, setGuests] = useState<GuestCount>({ adults: 2, children: 0 });
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  // State for availability check
-  type AvailabilityStatus = 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
-  const [availabilityStatus, setAvailabilityStatus] = useState<AvailabilityStatus>('idle');
-  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  // (REMOVED) State for availability check
   
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown>(defaultPriceBreakdown);
 
-  // Data fetching logic
+  // --- (NEW) Data fetching with React Query ---
+  
+  // 1. Fetch hotel details
+  const hotelQuery = useQuery({
+    queryKey: ['hotel', slug],
+    queryFn: () => fetchHotelBySlug(slug!),
+    enabled: !!slug,
+  });
+
+  const hotel = hotelQuery.data;
+
+  // 2. Fetch reviews (dependent on hotel query)
+  const reviewsQuery = useQuery({
+    queryKey: ['reviews', hotel?.id],
+    queryFn: () => fetchReviewsForHotel(hotel!.id),
+    enabled: !!hotel?.id, // Only run if hotel.id exists
+  });
+
+  const reviews = reviewsQuery.data ?? [];
+
+  // 3. Fetch similar hotels (dependent on hotel query)
+  const similarHotelsQuery = useQuery({
+    queryKey: ['similarHotels', hotel?.address?.city, hotel?.id],
+    queryFn: () => fetchSimilarHotels(hotel!.address.city, hotel!.id),
+    enabled: !!hotel?.address?.city && !!hotel?.id,
+  });
+
+  const similarHotels = similarHotelsQuery.data ?? [];
+
+  // 4. (NEW) Availability Check Query
+  const availabilityQuery = useQuery({
+    queryKey: ['availability', selectedRoom?.id, dates.from, dates.to],
+    queryFn: () => checkAvailability(selectedRoom!.id, dates.from!, dates.to!),
+    enabled: !!selectedRoom && !!dates.from && !!dates.to,
+    staleTime: 5000, // Cache for 5 seconds
+  });
+
+  // (NEW) Check for guest capacity locally
+  const totalGuests = guests.adults + guests.children;
+  const capacityError = selectedRoom && totalGuests > selectedRoom.capacity
+    ? `This room only supports ${selectedRoom.capacity} guest(s).`
+    : null;
+  
+  const availabilityStatus = capacityError
+    ? 'unavailable'
+    : availabilityQuery.isFetching ? 'checking'
+    : availabilityQuery.isError ? 'error'
+    : availabilityQuery.data === true ? 'available'
+    : availabilityQuery.data === false ? 'unavailable'
+    : 'idle';
+  
+  const availabilityError = capacityError
+    ? capacityError
+    : availabilityQuery.isError ? (availabilityQuery.error as Error).message
+    : availabilityQuery.data === false ? 'This room is not available for the selected dates.'
+    : null;
+
+  
+  // --- Effects for derived state ---
+
+  // (NEW) Effect to set default selected room once hotel loads
   useEffect(() => {
-    const fetchHotelData = async () => {
-      if (!slug) return;
-
-      setIsLoading(true);
-      setHotel(null);
-      setReviews([]);
-      setSimilarHotels([]);
-      setAvailabilityStatus('idle'); 
-      
-      // 1. Fetch hotel details and its rooms
-      const { data: hotelData, error: hotelError } = await supabase
-        .from('hotels')
-        .select(`
-          *,
-          rooms (*)
-        `)
-        .eq('slug', slug)
-        .single();
-
-      if (hotelError || !hotelData) {
-        console.error("Error fetching hotel:", hotelError);
-        setIsLoading(false);
-        return;
-      }
-
-      setHotel(hotelData as Hotel);
-      if (hotelData.rooms && hotelData.rooms.length > 0) {
-        setSelectedRoom(hotelData.rooms[0]);
-      }
-
-      // 2. Fetch reviews for that hotel
-      const { data: reviewData, error: reviewError } = await supabase
-        .from('reviews')
-        .select('*')
-        .eq('hotel_id', hotelData.id)
-        .order('created_at', { ascending: false }); // (NEW) Order by newest
-
-      if (!reviewError) {
-        setReviews(reviewData as Review[]);
-      }
-
-      // 3. Fetch similar hotels (same city, not this one)
-      if (hotelData.address?.city) {
-        const { data: similarData } = await supabase
-          .from('hotels')
-          .select('*')
-          .eq('address->>city', hotelData.address.city) 
-          .neq('id', hotelData.id)
-          .limit(3); 
-        
-        if (similarData) {
-          setSimilarHotels(similarData as Hotel[]);
-        }
-      }
-
-      setIsLoading(false);
-    };
-
-    fetchHotelData();
-  }, [slug]); 
+    if (hotel && hotel.rooms && hotel.rooms.length > 0 && !selectedRoom) {
+      setSelectedRoom(hotel.rooms[0]);
+    }
+  }, [hotel, selectedRoom]);
 
   // (NEW) Check for existing user review whenever reviews or auth state change
   useEffect(() => {
@@ -502,7 +553,7 @@ export const HotelDetailPage = () => {
   }, [reviews, auth.session]);
 
   
-  // Dynamic Price Calculation Logic
+  // Dynamic Price Calculation Logic (depends on hotel)
   useEffect(() => {
     if (dates.from && dates.to && hotel && selectedRoom) {
       const roomModifier = selectedRoom.base_price_modifier || 1;
@@ -524,49 +575,7 @@ export const HotelDetailPage = () => {
     }
   }, [dates, hotel, selectedRoom]);
 
-  // REAL Availability Check Logic
-  useEffect(() => {
-    if (!dates.from || !dates.to || !selectedRoom || !hotel) {
-      setAvailabilityStatus('idle');
-      return;
-    }
-
-    const totalGuests = guests.adults + guests.children;
-    if (totalGuests > selectedRoom.capacity) {
-      setAvailabilityStatus('unavailable');
-      setAvailabilityError(`This room only supports ${selectedRoom.capacity} guest(s).`);
-      return;
-    }
-
-    const checkAvailability = async () => {
-      setAvailabilityStatus('checking');
-      setAvailabilityError(null);
-
-      const { data, error } = await supabase.rpc('check_room_availability', {
-        p_room_id: selectedRoom.id,
-        p_check_in: dates.from!.toISOString().split('T')[0], 
-        p_check_out: dates.to!.toISOString().split('T')[0],
-      });
-
-      if (error) {
-        console.error("Availability check error:", error);
-        setAvailabilityStatus('error');
-        setAvailabilityError('Could not check availability.');
-      } else if (data === true) {
-        setAvailabilityStatus('available');
-      } else if (data === false) {
-        setAvailabilityStatus('unavailable');
-        setAvailabilityError('This room is not available for the selected dates.');
-      }
-    };
-    
-    const timer = setTimeout(() => {
-      checkAvailability();
-    }, 500);
-
-    return () => clearTimeout(timer);
-
-  }, [dates, selectedRoom, guests, hotel]);
+  // (REMOVED) Real Availability Check Logic (now a useQuery)
 
 
   // Handle Book Now Click
@@ -602,15 +611,15 @@ export const HotelDetailPage = () => {
   };
 
   // (NEW) Callback to optimistically update UI
-  const handleReviewSubmit = (newReview: Review) => {
-    // Add new review to the top of the list
-    setReviews(prevReviews => [newReview, ...prevReviews]);
-    // Set userReview state so the form is replaced with "Already reviewed" message
-    setUserReview(newReview); 
+  const handleReviewSubmit = () => {
+    // This function is simpler now.
+    // The mutation handles success, invalidation, and state update.
+    // We just set the userReview state to prevent showing the form again.
+    setUserReview(userReview); // This is a bit of a hack, really the invalidation should handle it.
   };
   
   // --- Loading and Error States ---
-  if (isLoading) {
+  if (hotelQuery.isLoading) {
     return (
       <div className="bg-gray-100 min-h-screen">
         <Header />
@@ -621,13 +630,13 @@ export const HotelDetailPage = () => {
     );
   }
 
-  if (!hotel) {
+  if (hotelQuery.isError || !hotel) {
     return (
       <div className="bg-gray-100 min-h-screen">
         <Header />
         <div className="text-center py-20">
           <h1 className="text-2xl font-bold">Hotel not found</h1>
-          <p className="text-gray-600">The hotel you're looking for doesn't exist.</p>
+          <p className="text-gray-600">{(hotelQuery.error as Error)?.message || 'The hotel you are looking for does not exist.'}</p>
         </div>
       </div>
     );
@@ -765,7 +774,11 @@ export const HotelDetailPage = () => {
             {/* Individual Reviews (if any exist) */}
             <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
               <h3 className="text-xl font-semibold text-gray-800 mb-4">What guests are saying</h3>
-              {reviews.length > 0 ? (
+              {reviewsQuery.isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 size={24} className="animate-spin text-blue-600" />
+                </div>
+              ) : reviews.length > 0 ? (
                 <div className="space-y-4">
                   {reviews.map(review => (
                     <div key={review.id} className="border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">

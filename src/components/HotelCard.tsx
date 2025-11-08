@@ -7,13 +7,11 @@ import {
   Wind,
   ParkingCircle 
 } from 'lucide-react';
+import { motion } from 'framer-motion'; // <-- ADDED
 import type { Hotel } from '../data/data.tsx';
-// --- FIX: Removed 'mockHotelList' from this import ---
 import { formatCurrency } from '../data/data.tsx'; 
 
 // --- TYPE DEFINITIONS ---
-// 'Hotel' type is imported from './data/data.tsx'
-
 type HotelCardProps = {
   hotel: Hotel;
   onClick: (hotel: Hotel) => void;
@@ -23,16 +21,15 @@ type HotelCardProps = {
 /**
  * Displays a single hotel's information in a card format.
  * (As specified in json: animated, responsive, price, rating, location, badges)
- * Note: 'animated' is handled via CSS transitions.
+ * Note: 'animated' is now handled by Framer Motion.
  */
 export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   const { 
     name, 
-    // city, // 'city' is now inside 'address'
     address,
-    popularity_score, // Use 'popularity_score'
+    popularity_score, 
     stars, 
-    base_price, // Use 'base_price'
+    base_price, 
     currency, 
     thumbnail, 
     amenities, 
@@ -73,9 +70,11 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
  };
 
   return (
-    <div 
-      className="bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-pointer group"
+    <motion.div // <-- CHANGED
+      className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl cursor-pointer" // <-- EDITED
       onClick={() => onClick(hotel)}
+      whileHover={{ y: -8, scale: 1.02 }} // <-- ADDED
+      transition={{ type: "spring", stiffness: 400, damping: 17 }} // <-- ADDED
     >
       <div className="relative">
         <div className="flex items-center gap-3 text-gray-600 my-3">
@@ -131,7 +130,7 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -142,12 +141,11 @@ export default function App() {
     console.log("Card clicked:", hotel.name);
   };
 
-  // --- FIX: Create a local mock object for the demo ---
   const demoHotel: Hotel = {
     id: "h-demo",
     name: "Demo Hotel Card",
     slug: "demo-hotel-card",
-    city: "Demo City", // Kept for simplicity, though 'address' is preferred
+    city: "Demo City",
     address: { street: "123 Demo St", city: "Demo City", country: "DemoLand", lat: 0, lng: 0 },
     stars: 4,
     popularity_score: 4.5,
@@ -163,7 +161,6 @@ export default function App() {
   return (
     <div className="bg-gray-100 p-8 min-h-screen">
       <div className="max-w-sm mx-auto">
-        {/* --- FIX: Use the new local demoHotel object --- */}
         <HotelCard hotel={demoHotel} onClick={handleCardClick} />
       </div>
     </div>

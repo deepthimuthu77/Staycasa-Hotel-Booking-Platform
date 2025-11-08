@@ -1,6 +1,7 @@
 // src/components/MockPaymentModal.tsx
 
-import React, { useState, useEffect } from 'react'; // (NEW) Imported useEffect
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, type Variants } from 'framer-motion'; // <-- IMPORT 'Variants' TYPE
 import { 
   X, 
   QrCode, 
@@ -48,30 +49,22 @@ export const MockPaymentModal = ({
   const [paymentState, setPaymentState] = useState<'INIT' | 'PENDING' | 'CONFIRMED' | 'FAILED'>('INIT');
   const [activeTab, setActiveTab] = useState<'qr' | 'apps'>('qr');
 
-  // --- (NEW) Auto-fail timeout logic ---
+  // --- Auto-fail timeout logic ---
   useEffect(() => {
-    // Only run this logic if the modal is open and in the initial state
     if (isOpen && paymentState === 'INIT') {
       const timer = setTimeout(() => {
-        // If 2 minutes pass and the user hasn't done anything,
-        // automatically fail the payment.
         console.log("Payment timed out.");
         setPaymentState('FAILED');
         onPaymentFailure();
       }, 120000); // 120000ms = 2 minutes
 
-      // Cleanup: clear the timer if the component unmounts
-      // or if the payment state changes (e.g., user clicks "I have paid")
       return () => clearTimeout(timer);
     }
   }, [isOpen, paymentState, onPaymentFailure]);
-  // --- End of new logic ---
 
   const handleConfirmPayment = () => {
     setPaymentState('PENDING');
-    // Simulate API call
     setTimeout(() => {
-      // Simulate a 80% success rate
       if (Math.random() < 0.8) {
         setPaymentState('CONFIRMED');
         
@@ -83,7 +76,6 @@ export const MockPaymentModal = ({
           paid_at: new Date().toISOString()
         };
         
-        // Close modal after success animation
         setTimeout(() => {
           onPaymentSuccess(paymentMeta);
           setPaymentState('INIT'); 
@@ -99,135 +91,163 @@ export const MockPaymentModal = ({
     setPaymentState('INIT');
   };
   
-  // (NEW) Reset payment state when modal is closed externally
+  // Reset payment state when modal is closed externally
   useEffect(() => {
     if (!isOpen) {
-      // Add a small delay to allow close animation to finish
       setTimeout(() => {
         setPaymentState('INIT');
       }, 300);
     }
   }, [isOpen]);
 
+  // --- Modal background variant ---
+  const backdropVariants: Variants = { // <-- ADDED TYPE
+    hidden: { opacity: 0 },
+    visible: { opacity: 1 },
+  };
 
-  if (!isOpen) return null;
+  // --- Modal content variant ---
+  const modalVariants: Variants = { // <-- ADDED TYPE (This is the fix)
+    hidden: { opacity: 0, scale: 0.9, y: 50 },
+    visible: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 400, damping: 25 } },
+    exit: { opacity: 0, scale: 0.9, y: 50, transition: { duration: 0.2 } },
+  };
+
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md m-4 transform transition-all duration-300 scale-100 opacity-100">
-        <div className="flex justify-between items-center p-4 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800">Complete Payment</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={24} />
-          </button>
-        </div>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"
+          initial="hidden"
+          animate="visible"
+          exit="hidden"
+          variants={backdropVariants}
+          onClick={onClose} 
+        >
+          <motion.div 
+            className="bg-white rounded-xl shadow-2xl w-full max-w-md m-4 transform"
+            variants={modalVariants} // This will no longer show an error
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            onClick={(e) => e.stopPropagation()} 
+          >
+            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">Complete Payment</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
 
-        {/* --- Modal Content --- */}
-        <div className="p-6">
-          <div className="text-center mb-4">
-            <p className="text-sm text-gray-500">You are paying</p>
-            <p className="text-4xl font-bold text-gray-900">
-              {formatCurrency(booking.price_breakdown.total, booking.price_breakdown.currency)}
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              Ref: {booking.booking_reference}
-            </p>
-          </div>
-
-          {/* --- Payment State Handling --- */}
-          {paymentState === 'INIT' && (
-            <div>
-              {/* Tabs */}
-              <div className="flex w-full mb-4 rounded-lg bg-gray-100 p-1">
-                <button
-                  onClick={() => setActiveTab('qr')}
-                  className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${
-                    activeTab === 'qr' ? 'bg-white shadow' : 'text-gray-600'
-                  }`}
-                >
-                  Scan QR Code
-                </button>
-                <button
-                  onClick={() => setActiveTab('apps')}
-                  className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${
-                    activeTab === 'apps' ? 'bg-white shadow' : 'text-gray-600'
-                  }`}
-                >
-                  Use Payment App
-                </button>
+            {/* --- Modal Content --- */}
+            <div className="p-6">
+              <div className="text-center mb-4">
+                <p className="text-sm text-gray-500">You are paying</p>
+                <p className="text-4xl font-bold text-gray-900">
+                  {formatCurrency(booking.price_breakdown.total, booking.price_breakdown.currency)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Ref: {booking.booking_reference}
+                </p>
               </div>
 
-              {/* Tab Content */}
-              {activeTab === 'qr' && (
-                <div className="flex flex-col items-center">
-                  <div className="p-3 bg-white border border-gray-200 rounded-lg">
-                    <QrCode size={180} className="text-gray-800" />
+              {/* --- Payment State Handling --- */}
+              {paymentState === 'INIT' && (
+                <div>
+                  {/* Tabs */}
+                  <div className="flex w-full mb-4 rounded-lg bg-gray-100 p-1">
+                    <button
+                      onClick={() => setActiveTab('qr')}
+                      className={`w-1/D2 p-2 rounded-md font-semibold transition-colors ${
+                        activeTab === 'qr' ? 'bg-white shadow' : 'text-gray-600'
+                      }`}
+                    >
+                      Scan QR Code
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('apps')}
+                      className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${
+                        activeTab === 'apps' ? 'bg-white shadow' : 'text-gray-600'
+                      }`}
+                    >
+                      Use Payment App
+                    </button>
                   </div>
-                  <p className="text-sm text-gray-600 mt-3">Scan with any UPI app</p>
+
+                  {/* Tab Content */}
+                  {activeTab === 'qr' && (
+                    <div className="flex flex-col items-center">
+                      <div className="p-3 bg-white border border-gray-200 rounded-lg">
+                        <QrCode size={180} className="text-gray-800" />
+                      </div>
+                      <p className="text-sm text-gray-600 mt-3">Scan with any UPI app</p>
+                    </div>
+                  )}
+                  
+                  {activeTab === 'apps' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-center text-gray-600">Select a (fake) app to pay</p>
+                      <button className="w-full p-3 border border-gray-300 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-gray-50">
+                        <Banknote size={20} className="text-green-500" />
+                        FakePay
+                      </button>
+                      <button className="w-full p-3 border border-gray-300 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-gray-50">
+                        <Banknote size={20} className="text-blue-500" />
+                        MockPay
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleConfirmPayment}
+                    className="w-full bg-blue-600 text-white p-3 mt-6 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors"
+                  >
+                    I have paid
+                  </button>
                 </div>
               )}
-              
-              {activeTab === 'apps' && (
-                <div className="space-y-3">
-                  <p className="text-sm text-center text-gray-600">Select a (fake) app to pay</p>
-                  <button className="w-full p-3 border border-gray-300 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-gray-50">
-                    <Banknote size={20} className="text-green-500" />
-                    FakePay
-                  </button>
-                  <button className="w-full p-3 border border-gray-300 rounded-lg flex items-center justify-center gap-2 font-medium hover:bg-gray-50">
-                    <Banknote size={20} className="text-blue-500" />
-                    MockPay
-                  </button>
+
+              {paymentState === 'PENDING' && (
+                <div className="flex flex-col items-center justify-center h-48">
+                  <Loader2 size={48} className="text-blue-600 animate-spin" />
+                  <p className="text-lg font-semibold text-gray-700 mt-4">Confirming payment...</p>
+                  <p className="text-sm text-gray-500">Please wait, do not close this window.</p>
                 </div>
               )}
 
-              <button
-                onClick={handleConfirmPayment}
-                className="w-full bg-blue-600 text-white p-3 mt-6 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors"
-              >
-                I have paid
-              </button>
-            </div>
-          )}
+              {paymentState === 'CONFIRMED' && (
+                <div className="flex flex-col items-center justify-center h-48">
+                  <CheckCircle2 size={48} className="text-green-600" />
+                  <p className="text-lg font-semibold text-gray-700 mt-4">Payment Successful!</p>
+                  <p className="text-sm text-gray-500">Redirecting you...</p>
+                </div>
+              )}
 
-          {paymentState === 'PENDING' && (
-            <div className="flex flex-col items-center justify-center h-48">
-              <Loader2 size={48} className="text-blue-600 animate-spin" />
-              <p className="text-lg font-semibold text-gray-700 mt-4">Confirming payment...</p>
-              <p className="text-sm text-gray-500">Please wait, do not close this window.</p>
+              {paymentState === 'FAILED' && (
+                <div className="flex flex-col items-center justify-center h-48">
+                  <AlertCircle size={48} className="text-red-600" />
+                  <p className="text-lg font-semibold text-gray-700 mt-4">Payment Failed</p>
+                  <p className="text-sm text-gray-500 mb-4">Your payment request timed out or was declined.</p>
+                  <button
+                    onClick={handleRetry}
+                    className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700"
+                  >
+                    Retry Payment
+                  </button>
+                </div>
+              )}
             </div>
-          )}
 
-          {paymentState === 'CONFIRMED' && (
-            <div className="flex flex-col items-center justify-center h-48">
-              <CheckCircle2 size={48} className="text-green-600" />
-              <p className="text-lg font-semibold text-gray-700 mt-4">Payment Successful!</p>
-              <p className="text-sm text-gray-500">Redirecting you...</p>
+            <div className="p-4 bg-gray-50 border-t border-gray-200">
+              <p className="text-xs text-gray-500 flex items-center justify-center gap-1.5">
+                <ShieldCheck size={14} className="text-green-600" />
+                This is a mock payment. No real money will be deducted.
+              </p>
             </div>
-          )}
-
-          {paymentState === 'FAILED' && (
-            <div className="flex flex-col items-center justify-center h-48">
-              <AlertCircle size={48} className="text-red-600" />
-              <p className="text-lg font-semibold text-gray-700 mt-4">Payment Failed</p>
-              <p className="text-sm text-gray-500 mb-4">Your payment request timed out or was declined.</p>
-              <button
-                onClick={handleRetry}
-                className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700"
-              >
-                Retry Payment
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="p-4 bg-gray-50 border-t border-gray-200">
-          <p className="text-xs text-gray-500 flex items-center justify-center gap-1.5">
-            <ShieldCheck size={14} className="text-green-600" />
-            This is a mock payment. No real money will be deducted.
-          </p>
-        </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

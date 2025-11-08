@@ -19,6 +19,9 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+// (NEW) React Query Imports
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 // (UPDATED) React Hook Form Imports
 import { useForm, type FieldError, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,6 +43,7 @@ type ProfileFormData = z.infer<typeof profileSchema>;
 
 
 // --- (UPDATED) CHILD COMPONENT: FormInputRow ---
+// (No changes to this component)
 type FormInputRowProps = {
   icon: React.ReactNode;
   label: string;
@@ -49,7 +53,7 @@ type FormInputRowProps = {
   type?: 'text' | 'email' | 'tel' | 'textarea' | 'date';
   disabled?: boolean;
   placeholder?: string;
-  value?: string; // (NEW) Add value prop for disabled fields
+  value?: string; 
 };
 
 const FormInputRow = ({
@@ -60,7 +64,7 @@ const FormInputRow = ({
   error, 
   type = 'text',
   disabled = false,
-  value, // (NEW)
+  value, 
 }: FormInputRowProps) => {
   const InputComponent = type === 'textarea' ? 'textarea' : 'input';
 
@@ -91,11 +95,9 @@ const FormInputRow = ({
           } ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''} ${
             type === 'date' ? 'text-gray-700' : ''
           }`}
-          // (UPDATED) Conditionally spread register or use value
           {...(disabled ? { value: value || '' } : register)}
         />
       </div>
-      {/* (NEW) Error message display */}
       {error && (
         <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
           <AlertCircle size={14} /> {error.message}
@@ -106,6 +108,7 @@ const FormInputRow = ({
 };
 
 // --- (NEW) CHILD COMPONENT: NotificationToggle ---
+// (No changes to this component)
 type NotificationToggleProps = {
   label: string;
   description: string;
@@ -142,9 +145,8 @@ const NotificationToggle = ({
 // --- PAGE COMPONENT: AccountPage (UPDATED) ---
 export const AccountPage = () => {
   const auth = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined); 
-
+  const queryClient = useQueryClient(); 
+  
   // (NEW) Mock state for notification preferences
   const [notifications, setNotifications] = useState({
     booking_updates: true,
@@ -157,7 +159,7 @@ export const AccountPage = () => {
     handleSubmit,
     reset, 
     watch, 
-    formState: { errors, isSubmitting }, 
+    formState: { errors }, 
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -173,89 +175,127 @@ export const AccountPage = () => {
   // (NEW) Watch the full_name field to display under the avatar
   const watchedFullName = watch('full_name');
 
-  // --- Fetch profile data on load ---
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!auth?.session?.user) return;
-
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', auth.session.user.id)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error.message);
-      } else if (data) {
-        // (NEW) Populate the form with fetched data
-        reset(data);
-        setAvatarUrl(data.avatar_url); // (NEW) Set avatar URL
-      }
-      setIsLoading(false);
-    };
-
-    fetchProfile();
-  }, [auth?.session, reset]); 
-
-  // --- Real Avatar Upload ---
-  const handleAvatarUpload = async (file: File): Promise<boolean> => {
-    if (!auth?.session?.user) return false;
-
-    const filePath = `${auth.session.user.id}/${Date.now()}-${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from('user-avatars')
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error('Upload failed:', uploadError.message);
-      alert('Upload failed. Please try again.');
-      return false;
+  // --- (NEW) Fetch profile data with React Query ---
+  const fetchProfile = async () => {
+    if (!auth?.session?.user) {
+      throw new Error("User not authenticated");
     }
-
-    const { data: urlData } = supabase.storage
-      .from('user-avatars')
-      .getPublicUrl(filePath);
-
-    const newAvatarUrl = urlData.publicUrl;
-
-    const { error: updateError } = await supabase
+    
+    const { data, error } = await supabase
       .from('users')
-      .update({
-        avatar_url: newAvatarUrl,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', auth.session.user.id);
-
-    if (updateError) {
-      console.error('Failed to update avatar URL:', updateError.message);
-      alert('Avatar uploaded but failed to save. Please try again.');
-      return false;
-    }
-
-    setAvatarUrl(newAvatarUrl);
-    return true;
-  };
-
-  // --- (UPDATED) Real Profile Save ---
-  const onSave = async (data: ProfileFormData) => {
-    if (!auth?.session?.user) return;
-
-    const { error } = await supabase
-      .from('users')
-      .update({
-        ...data, 
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', auth.session.user.id);
+      .select('*')
+      .eq('id', auth.session.user.id)
+      .single();
 
     if (error) {
-      alert('Error saving profile: ' + error.message);
-    } else {
+      throw new Error(error.message);
+    }
+    return data as UserProfile;
+  };
+
+  const { data: profileData, isLoading } = useQuery({
+    queryKey: ['profile', auth?.session?.user?.id],
+    queryFn: fetchProfile,
+    enabled: !!auth?.session?.user, 
+  });
+
+  // --- (UPDATED) Effect to populate form once data is loaded ---
+  useEffect(() => {
+    if (profileData) {
+      // --- THIS IS THE FIX ---
+      // Transform 'null' from DB to '""' (empty string) for the form,
+      // which satisfies the Zod schema (.or(z.literal(''))).
+      const formData = {
+        full_name: profileData.full_name || '',
+        phone: profileData.phone || '',
+        bio: profileData.bio || '',
+        date_of_birth: profileData.date_of_birth || '',
+        language: profileData.language || '',
+        currency: profileData.currency || '',
+      };
+      reset(formData);
+      // --- END OF FIX ---
+    }
+  }, [profileData, reset]);
+
+  // --- (NEW) Real Profile Save Mutation ---
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: ProfileFormData) => {
+      if (!auth?.session?.user) throw new Error("User not authenticated");
+      
+      const { error } = await supabase
+        .from('users')
+        .update({
+          ...data, 
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', auth.session.user.id);
+
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
       alert('Profile saved successfully!');
+      queryClient.invalidateQueries({ queryKey: ['profile', auth?.session?.user?.id] });
+    },
+    onError: (error) => {
+      alert('Error saving profile: ' + error.message);
+    }
+  });
+
+  // --- (NEW) Real Avatar Upload Mutation ---
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      if (!auth?.session?.user) throw new Error("User not authenticated");
+  
+      const filePath = `${auth.session.user.id}/${Date.now()}-${file.name}`;
+  
+      const { error: uploadError } = await supabase.storage
+        .from('user-avatars')
+        .upload(filePath, file);
+  
+      if (uploadError) throw new Error(uploadError.message);
+  
+      const { data: urlData } = supabase.storage
+        .from('user-avatars')
+        .getPublicUrl(filePath);
+  
+      const newAvatarUrl = urlData.publicUrl;
+  
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          avatar_url: newAvatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', auth.session.user.id);
+  
+      if (updateError) throw new Error(updateError.message);
+
+      return true; // Success
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', auth?.session?.user?.id] });
+    },
+    onError: (error) => {
+      alert('Upload failed: ' + error.message);
+    },
+  });
+
+  // (NEW) Wrapper for React Hook Form submit
+  const onSave = (data: ProfileFormData) => {
+    updateProfileMutation.mutate(data);
+  };
+
+  // (NEW) Wrapper for AvatarUploader
+  const handleAvatarUpload = async (file: File): Promise<boolean> => {
+    try {
+      await uploadAvatarMutation.mutateAsync(file);
+      return true;
+    } catch (e) {
+      return false;
     }
   };
+
 
   // --- Real Password Reset ---
   const handlePasswordReset = async () => {
@@ -304,7 +344,7 @@ export const AccountPage = () => {
                 id: auth.session!.user.id,
                 email: auth.session!.user.email!,
                 full_name: watchedFullName || 'User', 
-                avatar_url: avatarUrl, 
+                avatar_url: profileData?.avatar_url || undefined, // Use || undefined here
               }}
               onAvatarChange={handleAvatarUpload}
             />
@@ -325,18 +365,14 @@ export const AccountPage = () => {
                 register={register('full_name')} 
                 error={errors.full_name} 
               />
-              {/* --- (THIS IS THE FIX) --- */}
               <FormInputRow
                 icon={<Mail />}
                 label="Email Address"
                 name="email"
                 value={auth.session!.user.email}
                 disabled={true}
-                // (FIX) We pass the real register, but the component will
-                // ignore it because disabled={true}
                 register={register('full_name')} 
               />
-              {/* --- (END OF FIX) --- */}
               <FormInputRow
                 icon={<Phone />}
                 label="Phone Number"
@@ -477,15 +513,15 @@ export const AccountPage = () => {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={isSubmitting} 
+              disabled={updateProfileMutation.isPending} 
               className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:bg-gray-400"
             >
-              {isSubmitting ? ( 
+              {updateProfileMutation.isPending ? ( 
                 <Loader2 size={18} className="animate-spin" />
               ) : (
                 <Save size={18} />
               )}
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
+              {updateProfileMutation.isPending ? 'Saving...' : 'Save Changes'} 
             </button>
           </div>
         </div>
