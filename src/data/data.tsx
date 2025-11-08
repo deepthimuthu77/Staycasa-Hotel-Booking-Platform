@@ -31,7 +31,7 @@ export type Room = {
   description: string;
   capacity: number;
   bed_type: string;
-  base_price_modifier: number; // In your schema, this is 'base_price' in rooms table
+  base_price: number; // In your schema, this is 'base_price' in rooms table
   amenities: string[];
   photos: string[];
 };

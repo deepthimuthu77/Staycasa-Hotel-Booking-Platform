@@ -556,8 +556,7 @@ export const HotelDetailPage = () => {
   // Dynamic Price Calculation Logic (depends on hotel)
   useEffect(() => {
     if (dates.from && dates.to && hotel && selectedRoom) {
-      const roomModifier = selectedRoom.base_price_modifier || 1;
-      const effectiveBasePrice = hotel.base_price * roomModifier;
+      const effectiveBasePrice = selectedRoom.base_price || hotel.base_price;
 
       const breakdown = calculatePrice(
         effectiveBasePrice,
@@ -569,7 +568,7 @@ export const HotelDetailPage = () => {
     } else {
       setPriceBreakdown({
         ...defaultPriceBreakdown,
-        base_price_per_night: (hotel?.base_price || 0) * (selectedRoom?.base_price_modifier || 1),
+        base_price_per_night: (hotel?.base_price || 0) * (selectedRoom?.base_price || 1),
         currency: hotel?.currency || 'INR',
       });
     }

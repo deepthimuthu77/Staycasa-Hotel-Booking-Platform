@@ -35,7 +35,7 @@ type FilterBarProps = {
 
 // --- (NEW) Define the default, cleared state for filters ---
 const clearedFilters: Filters = {
-  priceRange: { min: 0, max: 20000 }, // Max of the slider
+  priceRange: { min: 0, max: 50000 }, // Max of the slider
   stars: [], // No stars selected
   rating: 0, // No rating selected
   amenities: [], // No amenities selected
@@ -106,7 +106,7 @@ export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
               type="range"
               id="price"
               min={500}
-              max={20000}
+              max={50000}
               step={100}
               value={filters.priceRange.max}
               onChange={handlePriceChange}
