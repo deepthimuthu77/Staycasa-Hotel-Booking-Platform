@@ -1,9 +1,17 @@
 // supabase/functions/send-confirmation-email/index.ts
-
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { Resend } from 'npm:resend@3.2.0'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { Resend } from 'https://esm.sh/resend@3.2.0'
 
-// Helper function to format currency
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS', 
+}
+
+// ... (your formatCurrency and formatDate functions remain unchanged) ...
+
 function formatCurrency(amount: number, currency: string = "INR"): string {
   return new Intl.NumberFormat('en-IN', { 
     style: 'currency', 
@@ -12,8 +20,6 @@ function formatCurrency(amount: number, currency: string = "INR"): string {
     maximumFractionDigits: 0
   }).format(amount);
 };
-
-// Helper function to format date
 function formatDate(dateString: string): string {
   try {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -28,7 +34,12 @@ function formatDate(dateString: string): string {
 }
 
 Deno.serve(async (req) => {
-  // 1. Get secrets (using the new custom names)
+  // Handle preflight (OPTIONS) request
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  // 1. Get secrets
   const supabaseUrl = Deno.env.get('PUBLIC_SUPABASE_URL')!;
   const serviceRoleKey = Deno.env.get('SERVICE_ROLE_KEY')!;
   const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
@@ -37,22 +48,22 @@ Deno.serve(async (req) => {
   // 2. Create a Supabase client
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-  // 3. Get the booking_id from the request body
+  // 3. Get the booking_id
   const { booking_id } = await req.json();
   if (!booking_id) {
     return new Response(JSON.stringify({ error: 'booking_id is required' }), {
       status: 400,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
     });
   }
 
   try {
-    // 4. Fetch the complete booking data
+    // 4. Fetch the booking data
     const { data: booking, error } = await supabaseAdmin
       .from('bookings')
       .select(`
         *,
-        users (email, full_name),
+        users (full_name), 
         hotels (name, address)
       `)
       .eq('id', booking_id)
@@ -62,8 +73,21 @@ Deno.serve(async (req) => {
     if (!booking) throw new Error('Booking not found');
 
     // 5. Extract data for the email
-    const user = booking.users as { email: string; full_name: string };
+    const userProfile = booking.users as { full_name: string };
     const hotel = booking.hotels as { name: string; address: { street: string; city: string } };
+    
+    // --- (NEW) 5b. Get the user's email from the auth system ---
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin
+      .getUserById(booking.user_id);
+
+    if (authError) throw authError;
+    if (!authUser || !authUser.user.email) throw new Error('Could not find user email in auth system.');
+    
+    // 6. Combine user data
+    const user = {
+      email: authUser.user.email,
+      full_name: userProfile.full_name
+    }
     
     if (!user || !user.email) throw new Error('User or email not found for this booking');
     if (!hotel) throw new Error('Hotel not found for this booking');
@@ -73,9 +97,9 @@ Deno.serve(async (req) => {
     const total = formatCurrency(booking.price_breakdown.total, booking.currency);
     const hotelAddress = `${hotel.address.street}, ${hotel.address.city}`;
 
-    // 6. Send the email using Resend
+    // 7. Send the email using Resend
     await resend.emails.send({
-      from: 'ProBooker <booking@yourdomain.com>', // MUST be a verified domain on Resend
+      from: 'ProBooker@houseofstk.com', 
       to: [user.email],
       subject: `Your Booking is Confirmed! (Ref: ${booking.booking_reference})`,
       html: `
@@ -101,17 +125,17 @@ Deno.serve(async (req) => {
       `,
     });
 
-    // 7. Return a success response
+    // 8. Return a success response
     return new Response(JSON.stringify({ success: true, ref: booking.booking_reference }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
     });
 
   } catch (error) {
-    // 8. Return an error response
+    // 9. Return an error response
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
     });
   }
 })
