@@ -3,18 +3,14 @@ import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
-// Import the reusable component
-import { AuthOtpFlow } from '../components/AuthOtpFlow';
+// (NEW) Import the new AuthForm component
+import { AuthForm } from '../components/AuthForm';
 
 // Import the real useAuth hook from App.tsx
 import { useAuth } from '../App';
 
-// Import your Supabase client
-// We still need supabase for AuthOtpFlow, but not in this component
-// import { supabase } from '../lib/supabaseClient';
-
 /**
- * OTP login screen using the reusable AuthOtpFlow component.
+ * (UPDATED) Login screen using the reusable AuthForm component.
  */
 export const LoginPage = () => {
   const navigate = useNavigate();
@@ -28,17 +24,16 @@ export const LoginPage = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // 2. Handle a successful login from the AuthOtpFlow component
-  // --- THIS IS THE FIX ---
-  // The database trigger now handles profile creation.
-  // This function just needs to navigate the user.
+  // 2. Handle a successful login from the AuthForm component
+  // (This logic remains the same)
   const handleLoginSuccess = (user: SupabaseUser) => {
     console.log("Login successful, navigating to profile:", user.id);
-    // The database trigger has already created the profile.
-    // We can safely navigate to the profile page.
+    
+    // We navigate to /profile.
+    // The AuthProvider in App.tsx will handle redirecting
+    // to /create-password if this is a new user.
     navigate('/profile', { replace: true });
   };
-  // --- END OF FIX ---
 
   return (
     <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
@@ -51,15 +46,16 @@ export const LoginPage = () => {
           Back to home
         </a>
         <div className="bg-white p-8 rounded-xl shadow-xl border border-gray-200">
+          {/* (UPDATED) New header text */}
           <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
-            Welcome back
+            Welcome
           </h1>
           <p className="text-center text-gray-600 mb-6">
-            Log in or sign up with a one-time code.
+            Sign in to your account or create a new one.
           </p>
 
-          {/* Use the imported reusable component */}
-          <AuthOtpFlow onLoginSuccess={handleLoginSuccess} />
+          {/* (UPDATED) Use the new AuthForm component */}
+          <AuthForm onLoginSuccess={handleLoginSuccess} />
         </div>
       </div>
     </div>
@@ -72,4 +68,3 @@ export default function App() {
   // Router and AuthProvider to work correctly in isolation.
   return <LoginPage />;
 }
-

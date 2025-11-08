@@ -11,7 +11,7 @@ import {
 } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
-// Import your new Supabase client
+// Import Supabase client
 import { supabase } from './lib/supabaseClient';
 
 // Import all the pages
@@ -24,12 +24,15 @@ import { AccountPage } from './pages/AccountPage';
 import { MyBookingsPage } from './pages/MyBookingsPage';
 import { MyAccommodationsPage } from './pages/MyAccomodationsPage';
 
-// --- (NEW) Import the session shell layout ---
-// (Assuming you created the file in `src/layouts/ThreeTabSessionShell.tsx`)
+// --- (NEW) Import new pages ---
+
+import { CreatePasswordPage } from './pages/CreatePasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+
+// Import the session shell layout
 import { ThreeTabSessionShell } from './layouts/ThreeTabSessionShell';
 
 // --- REAL Auth Context ---
-// This context will hold the real Supabase session
 type AuthContextType = {
   session: Session | null;
   isAuthenticated: boolean;
@@ -55,20 +58,18 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(false);
     });
 
-    // 2. Listen for auth state changes (login, logout, etc.)
+    // 2. Listen for auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setLoading(false);
     });
 
-    // 3. Clean up the listener on unmount
     return () => subscription.unsubscribe();
   }, []);
 
-  // Show a loading spinner or blank page while session is being fetched
   if (loading) {
-    // You can replace this with a more polished global loader
     return (
       <div className="flex items-center justify-center h-screen bg-gray-100">
         <p className="text-lg font-semibold text-gray-700">Loading session...</p>
@@ -84,25 +85,20 @@ const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 // --- Protected Route ---
-// This component now uses the real auth state
 const ProtectedRoute = () => {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
-    // Redirect to login if not authenticated
     return <Navigate to="/login" replace />;
   }
-  return <Outlet />; // Render the child route (e.g., ThreeTabSessionShell)
+  return <Outlet />;
 };
 
 // --- Main Layout (AppShell) ---
-// This provides the top navigation bar for all pages.
 const Layout = () => {
-  const { isAuthenticated, session } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    // No navigation needed, the onAuthStateChange listener will
-    // automatically update the state and re-render.
   };
 
   return (
@@ -117,25 +113,15 @@ const Layout = () => {
               Browse
             </Link>
             
-            {/* (UPDATED) These links now point to the pages within the shell */}
             {isAuthenticated && (
               <>
-                <Link
-                  to="/bookings"
-                  className="text-gray-700 hover:text-blue-600"
-                >
+                <Link to="/bookings" className="text-gray-700 hover:text-blue-600">
                   My Bookings
                 </Link>
-                <Link
-                  to="/accommodations"
-                  className="text-gray-700 hover:text-blue-600"
-                >
+                <Link to="/accommodations" className="text-gray-700 hover:text-blue-600">
                   My Stays
                 </Link>
-                <Link
-                  to="/profile"
-                  className="text-gray-700 hover:text-blue-600"
-                >
+                <Link to="/profile" className="text-gray-700 hover:text-blue-600">
                   My Account
                 </Link>
               </>
@@ -153,14 +139,13 @@ const Layout = () => {
                 to="/login"
                 className="bg-blue-600 text-white px-3 py-1.5 rounded-lg font-semibold"
               >
-                Login
+                Login / Sign Up
               </Link>
             )}
           </div>
         </nav>
       </header>
       <main>
-        {/* The child routes will render here */}
         <Outlet />
       </main>
     </div>
@@ -168,54 +153,40 @@ const Layout = () => {
 };
 
 // --- The Main App Component ---
-// This sets up the auth provider and all the routes.
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* All pages are nested under the main Layout */}
           <Route path="/" element={<Layout />}>
-            {/* Public Routes */}
+            {/* --- Public Routes --- */}
             <Route index element={<BrowsePage />} />
             <Route path="hotel/:slug" element={<HotelDetailPage />} />
-
-            {/* LoginPage now handles the real auth flow */}
             <Route path="login" element={<LoginPage />} />
-
-            {/* SignupPage.tsx was not provided, so this route points to LoginPage */}
             <Route path="signup" element={<Navigate to="/login" replace />} />
+            
+            {/* (NEW) Public route for password reset (OTP flow) */}
+            <Route path="reset-password" element={<ResetPasswordPage />} />
 
-            <Route path="booking/preview" element={<BookingPreviewPage />} />
-            <Route
-              path="booking/confirmation/:ref"
-              element={<BookingConfirmationPage />}
-            />
-
-            {/* --- (UPDATED) Protected Routes --- */}
-            {/* This block checks if the user is authenticated.
-              If they are, it renders the <Outlet />, which is the
-              <ThreeTabSessionShell />.
-            */}
+            {/* --- Protected Routes --- */}
             <Route element={<ProtectedRoute />}>
-              {/* This shell provides the tabbed navigation and an <Outlet />
-                for its own child pages.
-              */}
+              
+              {/* (NEW) Route for setting password after magic link signup */}
+              {/* It must be protected because the user is logged in via the link */}
+              <Route path="create-password" element={<CreatePasswordPage />} />
+
+              <Route path="booking/preview" element={<BookingPreviewPage />} />
+              <Route path="booking/confirmation/:ref" element={<BookingConfirmationPage />} />
+
+              {/* Session Shell (Tabs) */}
               <Route element={<ThreeTabSessionShell />}>
-                {/* These routes render *inside* the ThreeTabSessionShell's Outlet.
-                  e.g., Navigating to /profile renders:
-                  <Layout> -> <ProtectedRoute> -> <ThreeTabSessionShell> -> <AccountPage>
-                */}
                 <Route path="profile" element={<AccountPage />} />
                 <Route path="bookings" element={<MyBookingsPage />} />
-                <Route
-                  path="accommodations"
-                  element={<MyAccommodationsPage />}
-                />
+                <Route path="accommodations" element={<MyAccommodationsPage />} />
               </Route>
             </Route>
 
-            {/* Fallback for unknown routes */}
+            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

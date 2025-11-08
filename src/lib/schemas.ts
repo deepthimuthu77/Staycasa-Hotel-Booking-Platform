@@ -2,32 +2,85 @@
 import { z } from 'zod';
 
 /**
- * Schema for the first step of the authentication flow (AuthOtpFlow.tsx).
- * Validates that the user has entered a valid email.
+ * (REMOVED) Schema for the first step of the authentication flow (AuthOtpFlow.tsx).
  */
-export const emailSchema = z.object({
+// export const emailSchema = z.object({ ... });
+
+/**
+ * (REMOVED) Schema for the second step of the authentication flow (AuthOtpFlow.tsx).
+ */
+// export const otpSchema = z.object({ ... });
+
+/**
+ * (NEW) Schema for the Sign In form (AuthForm.tsx).
+ */
+export const loginSchema = z.object({
   email: z
     .string()
     .min(1, 'Email is required')
     .email('Invalid email address'),
+  password: z
+    .string()
+    .min(1, 'Password is required'),
 });
 
 /**
- * Schema for the second step of the authentication flow (AuthOtpFlow.tsx).
- * Validates that the user has entered a 6-digit OTP code.
+ * (NEW) Schema for the Sign Up form (AuthForm.tsx).
+ * Captcha validation would be added here.
  */
-export const otpSchema = z.object({
+export const signupSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Invalid email address'),
+  // TODO: Add a real captcha validation schema
+  captcha: z.string().optional(),
+});
+
+/**
+ * (NEW) Schema for the Create Password page (CreatePasswordPage.tsx).
+ */
+export const createPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z
+    .string()
+    .min(1, 'Please confirm your password'),
+  // TODO: Add a real captcha validation schema
+  captcha: z.string().optional(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"], // Error will be attached to this field
+});
+
+/**
+ * (NEW) Schema for the Reset Password page (ResetPasswordPage.tsx).
+ */
+export const resetPasswordSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Invalid email address'),
   otp: z
     .string()
     .min(1, 'Code is required')
     .length(6, 'The code must be 6 digits'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z
+    .string()
+    .min(1, 'Please confirm your password'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
 });
+
 
 /**
  * Schema for the User Profile form (AccountPage.tsx).
- * Validates all the user's personal details and preferences.
- * We use .optional() and .or(z.literal('')) to allow fields
- * to be empty, which matches the database's nullable columns.
+ * (No changes here, this is still valid)
  */
 export const profileSchema = z.object({
   full_name: z
@@ -66,7 +119,7 @@ export const profileSchema = z.object({
 
 /**
  * Schema for the Review form (ReviewModal in MyAccomodationsPage.tsx).
- * Validates the review's star rating, title, and comment.
+ * (No changes here, this is still valid)
  */
 export const reviewSchema = z.object({
   rating: z.number().min(1, 'Please select a star rating.'),
