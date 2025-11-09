@@ -32,6 +32,10 @@ import { MyAccommodationsPage } from './pages/MyAccomodationsPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ThreeTabSessionShell } from './layouts/ThreeTabSessionShell';
 
+// (NEW) Import the logo image (Path adjusted based on previous discussion)
+import logo from './assets/logo.jpg';
+
+
 // --- REAL Auth Context ---
 type AuthContextType = {
   session: Session | null;
@@ -93,10 +97,15 @@ const ProtectedRoute = () => {
   return <Outlet />;
 };
 
-// --- (NEW) User Dropdown Menu ---
+// --- (MODIFIED) User Dropdown Menu ---
 const UserMenu = () => {
   const [isOpen, setIsOpen] = useState(false);
   const auth = useAuth();
+  
+  // Access the entire user object and metadata for safety
+  const user = auth.session?.user;
+  // This reads from the user's session metadata, which is what needs the update.
+  const avatarUrl = user?.user_metadata?.avatar_url as string | undefined;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -112,8 +121,22 @@ const UserMenu = () => {
         className="flex items-center gap-2 rounded-full py-1 pl-2 pr-3 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
       >
         <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-          {/* You can add user.avatar_url here later */}
-          <User size={18} className="text-gray-500" />
+          {/* --- FIX: Display avatar image if available, otherwise show User icon --- */}
+          {avatarUrl ? (
+            <img 
+              src={avatarUrl} 
+              alt="User Avatar"
+              className="w-full h-full object-cover"
+              // Add onError for robustness
+              onError={(e) => {
+                (e.target as HTMLImageElement).onerror = null;
+                (e.target as HTMLImageElement).src = 'https://placehold.co/40x40/9CA3AF/FFFFFF?text=U';
+              }}
+            />
+          ) : (
+            <User size={18} className="text-gray-500" />
+          )}
+          {/* --- END FIX --- */}
         </div>
         <span className="hidden md:inline">My Account</span>
         <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -181,8 +204,12 @@ const Layout = () => {
       <header className="sticky top-0 z-40 w-full bg-white/90 shadow-sm border-b border-gray-200 backdrop-blur-sm">
         {/* (MODIFIED) Changed max-w-7xl to max-w-screen-2xl */}
         <nav className="container mx-auto max-w-screen-2xl flex justify-between items-center h-16 p-4">
-          <Link to="/" className="text-2xl font-bold text-blue-600">
-            Staycasa
+          {/* --- UPDATED LOGO LINK: Image + Visually Appealing Text --- */}
+          <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-gray-800">
+            {/* The image (which should be at src/assets/logo.jpg) */}
+            <img src={logo} alt="Staycasa Logo" className="h-8" /> 
+            {/* The brand name with visually appealing font/style */}
+            <span className="text-blue-600">Stay<span className="text-gray-900">casa</span></span>
           </Link>
           <div className="flex items-center gap-4">
             <Link

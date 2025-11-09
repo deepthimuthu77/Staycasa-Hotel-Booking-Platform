@@ -1,8 +1,6 @@
 // src/pages/AccountPage.tsx
 
 import React, { useState, useEffect } from 'react';
-// (NEW) Import useNavigate
-import { useNavigate } from 'react-router-dom';
 import type { LucideProps } from 'lucide-react';
 import {
   User as UserIcon,
@@ -19,6 +17,7 @@ import {
   CreditCard,
   Bell,
   AlertCircle,
+  CheckCircle, // ADDED for success banner
 } from 'lucide-react';
 
 // (NEW) React Query Imports
@@ -147,16 +146,18 @@ const NotificationToggle = ({
 // --- PAGE COMPONENT: AccountPage (UPDATED) ---
 export const AccountPage = () => {
   const auth = useAuth();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate(); // <-- (NEW) Initialize the navigate hook
+  const queryClient = useQueryClient(); 
   
-  // (NEW) Mock state for notification preferences
+  // State for success banner
+  const [showSuccess, setShowSuccess] = useState(false); // <--- NEW STATE
+
+  // Mock state for notification preferences
   const [notifications, setNotifications] = useState({
     booking_updates: true,
     promotions: false,
   });
 
-  // (NEW) Setup React Hook Form
+  // Setup React Hook Form
   const {
     register,
     handleSubmit,
@@ -175,7 +176,7 @@ export const AccountPage = () => {
     },
   });
   
-  // (NEW) Watch the full_name field to display under the avatar
+  // Watch the full_name field to display under the avatar
   const watchedFullName = watch('full_name');
 
   // --- (NEW) Fetch profile data with React Query ---
@@ -223,7 +224,7 @@ export const AccountPage = () => {
     mutationFn: async (data: ProfileFormData) => {
       if (!auth?.session?.user) throw new Error("User not authenticated");
       
-      const { error } = await supabase // <-- FIX: Removed stray '_'
+      const { error } = await supabase
         .from('users')
         .update({
           ...data, 
@@ -234,7 +235,10 @@ export const AccountPage = () => {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
-      alert('Profile saved successfully!');
+      // --- REPLACE ALERT WITH VISUALLY APPEALING BANNER ---
+      setShowSuccess(true); 
+      setTimeout(() => setShowSuccess(false), 3000); // Hide after 3 seconds
+      // --- END FIX ---
       queryClient.invalidateQueries({ queryKey: ['profile', auth?.session?.user?.id] });
     },
     onError: (error) => {
@@ -255,13 +259,14 @@ export const AccountPage = () => {
   
       if (uploadError) throw new Error(uploadError.message);
   
-      const { data: urlData } = supabase.storage // <-- FIX: Removed stray '_'
+      const { data: urlData } = supabase.storage
         .from('user-avatars')
         .getPublicUrl(filePath);
   
       const newAvatarUrl = urlData.publicUrl;
   
-      const { error: updateError } = await supabase // <-- FIX: Removed stray '_'
+      // Update the 'users' table (for React Query and data persistence)
+      const { error: updateError } = await supabase
         .from('users')
         .update({
           avatar_url: newAvatarUrl,
@@ -271,10 +276,20 @@ export const AccountPage = () => {
   
       if (updateError) throw new Error(updateError.message);
 
-      return true; // Success
+      return { newAvatarUrl }; // Return the new URL
     },
-    onSuccess: () => {
+    onSuccess: async ({ newAvatarUrl }) => { // <--- MODIFIED TO RECEIVE URL
+      // 1. Invalidate React Query cache (for AccountPage content)
       queryClient.invalidateQueries({ queryKey: ['profile', auth?.session?.user?.id] });
+
+      // 2. --- FIX: EXPLICITLY UPDATE USER METADATA AND REFRESH SESSION ---
+      // This is crucial for the avatar to show up in the header (UserMenu component)
+      // This call updates the browser session data immediately.
+      await supabase.auth.updateUser({
+          data: { avatar_url: newAvatarUrl } 
+      });
+      
+      // 3. The session refresh is now handled implicitly by the updateUser call.
     },
     onError: (error) => {
       alert('Upload failed: ' + error.message);
@@ -297,10 +312,25 @@ export const AccountPage = () => {
   };
 
 
-  // --- (MODIFIED) Password Reset ---
-  const handlePasswordReset = () => {
-    // This will now navigate to your new context-aware page
-    navigate('/reset-password');
+  // --- Real Password Reset ---
+  const handlePasswordReset = async () => {
+    if (!auth?.session?.user?.email) {
+      alert('Could not find user email.');
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      auth.session.user.email,
+      {
+        redirectTo: `${window.location.origin}/password-reset`,
+      }
+    );
+
+    if (error) {
+      alert('Error sending reset email: ' + error.message);
+    } else {
+      alert('Password reset email sent! Please check your inbox.');
+    }
   };
 
   if (isLoading) {
@@ -316,6 +346,23 @@ export const AccountPage = () => {
       <h1 className="text-3xl font-bold text-gray-900 mb-6 hidden lg:block">
         My Account
       </h1>
+      
+      {/* --- NEW: SUCCESS BANNER (VISUALLY APPEALING) --- */}
+      {showSuccess && (
+        <div className="mb-6 p-4 rounded-lg bg-green-100 border border-green-300 text-green-800 font-semibold flex items-center justify-between shadow-md">
+            <span className="flex items-center gap-2">
+                <CheckCircle size={20} />
+                Profile saved successfully!
+            </span>
+            <button 
+                onClick={() => setShowSuccess(false)}
+                className="text-green-800 hover:text-green-900 font-bold"
+            >
+                &times;
+            </button>
+        </div>
+      )}
+      {/* --- END OF SUCCESS BANNER --- */}
 
       <form
         onSubmit={handleSubmit(onSave)}
@@ -354,9 +401,9 @@ export const AccountPage = () => {
                 icon={<Mail />}
                 label="Email Address"
                 name="email"
-                value={auth.session!.user.email!}
+                value={auth.session!.user.email}
                 disabled={true}
-                register={register('full_name')} // This is still weird, but it was in your file
+                register={register('full_name')} 
               />
               <FormInputRow
                 icon={<Phone />}
@@ -452,7 +499,7 @@ export const AccountPage = () => {
                 label="Booking Updates"
                 description="Email alerts for confirmations and cancellations."
                 enabled={notifications.booking_updates}
-                onToggle={() => // <-- FIX: Removed stray '_'
+                onToggle={() =>
                   setNotifications((p) => ({
                     ...p,
                     booking_updates: !p.booking_updates,
@@ -463,7 +510,7 @@ export const AccountPage = () => {
                 label="Promotions"
                 description="Occasional emails about sales and special offers."
                 enabled={notifications.promotions}
-                onToggle={() => // <-- FIX: Removed stray '_'
+                onToggle={() =>
                   setNotifications((p) => ({
                     ...p,
                     promotions: !p.promotions,
@@ -481,7 +528,7 @@ export const AccountPage = () => {
               <div>
                 <p className="font-medium text-gray-700">Password</p>
                 <p className="text-sm text-gray-500">
-                  Reset your password
+                  Reset your password via email
                 </p>
               </div>
               <button

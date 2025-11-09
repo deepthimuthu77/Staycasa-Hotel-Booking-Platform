@@ -7,7 +7,7 @@ import {
   Wind,
   ParkingCircle 
 } from 'lucide-react';
-import { motion } from 'framer-motion'; // <-- ADDED
+import { motion } from 'framer-motion'; 
 import type { Hotel } from '../data/data.tsx';
 import { formatCurrency } from '../data/data.tsx'; 
 
@@ -17,12 +17,34 @@ type HotelCardProps = {
   onClick: (hotel: Hotel) => void;
 };
 
-// --- HotelCard Component (No changes here) ---
-/**
- * Displays a single hotel's information in a card format.
- * (As specified in json: animated, responsive, price, rating, location, badges)
- * Note: 'animated' is now handled by Framer Motion.
- */
+// --- Helper to get Amenities Icon (MODIFIED) ---
+// Now returns the Lucide element ready to be styled by the wrapper div
+ const getAmenityIcon = (amenity: string) => {
+  const name = (amenity || '').toLowerCase();
+  let IconComponent;
+
+  if (name.includes('wifi')) {
+    IconComponent = Wifi;
+  } else if (name.includes('pool')) {
+    // Using a different icon for pool since the text was being used previously
+    IconComponent = Utensils; 
+  } else if (name.includes('restaurant') || name.includes('dining')) {
+    IconComponent = Utensils;
+  } else if (name.includes('ac') || name.includes('air')) {
+    IconComponent = Wind;
+  } else if (name.includes('parking')) {
+    IconComponent = ParkingCircle;
+  } else {
+    // Fallback icon
+    IconComponent = Star; 
+  }
+  
+  // Return a cloned element with necessary props for visibility
+  return <IconComponent size={16} />;
+ };
+
+
+// --- HotelCard Component (MODIFIED) ---
 export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   const { 
     name, 
@@ -36,59 +58,55 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
     is_featured 
   } = hotel;
 
-  // Helper to get amenities icons
- const getAmenityIcon = (amenity: string, i?: number) => {
-  const key = `${amenity}-${i ?? amenity}`;
-  const name = (amenity || '').toLowerCase();
-
-  if (name.includes('wifi') || name === 'wifi') {
-    return <Wifi key={key} size={16} className="text-gray-600" />;
-  }
-
-  if (name.includes('pool')) {
-    return (
-      <span key={key} className="text-gray-600 text-sm px-2 py-1 bg-gray-100 rounded">
-        Pool
-      </span>
-    );
-  }
-
-  if (name.includes('restaurant') || name.includes('dining') || name.includes('utensils')) {
-    return <Utensils key={key} size={16} className="text-gray-600" />;
-  }
-
-  if (name.includes('ac') || name.includes('air')) {
-    return <Wind key={key} size={16} className="text-gray-600" />;
-  }
-
-  if (name.includes('parking')) {
-    return <ParkingCircle key={key} size={16} className="text-gray-600" />;
-  }
-
-  // fallback: render the amenity text
-  return <span key={key} className="text-xs text-gray-600">{amenity}</span>;
- };
 
   return (
-    <motion.div // <-- CHANGED
-      className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl cursor-pointer" // <-- EDITED
+    <motion.div 
+      className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl cursor-pointer"
       onClick={() => onClick(hotel)}
-      whileHover={{ y: -8, scale: 1.02 }} // <-- ADDED
-      transition={{ type: "spring", stiffness: 400, damping: 17 }} // <-- ADDED
+      whileHover={{ y: -8, scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 400, damping: 17 }}
     >
-      <div className="relative">
-        <div className="flex items-center gap-3 text-gray-600 my-3">
-          {amenities?.slice(0, 4).map((a, i) => getAmenityIcon(a, i))}
-          {amenities?.length > 4 && (
-            <span className="text-xs font-medium">+{amenities.length - 4} more</span>
-          )}
+      
+      {/* --- Image and Overlay --- */}
+      <div className="relative h-48 overflow-hidden"> 
+        <img 
+          src={thumbnail} 
+          alt={name} 
+          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+        />
+        
+        <div className="absolute top-0 left-0 w-full p-3 flex justify-between items-start">
+            
+            {/* --- Amenities (FIX APPLIED HERE) --- */}
+            <div className="flex items-center gap-2">
+                {amenities?.slice(0, 4).map((a, i) => (
+                    // FIX: Wrapper for high visibility
+                    <div 
+                        key={i} 
+                        className="p-1.5 rounded-full bg-black/50 backdrop-blur-sm text-white flex items-center justify-center"
+                    >
+                        {/* Render the icon inside the wrapper */}
+                        {getAmenityIcon(a)}
+                    </div>
+                ))}
+                {amenities?.length > 4 && (
+                    <span className="text-xs font-medium bg-black/50 text-white backdrop-blur-sm px-2 py-0.5 rounded-full">
+                        +{amenities.length - 4} more
+                    </span>
+                )}
+            </div>
+
+            {/* --- Rating Badge --- */}
+            <div className="bg-blue-600 text-white text-sm font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                <Star size={14} fill="white" />
+                <span>{popularity_score?.toFixed(1) || 'N/A'}</span>
+            </div>
+            
         </div>
-        <div className="absolute top-3 right-3 bg-blue-600 text-white text-sm font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-          <Star size={14} fill="white" />
-          <span>{popularity_score?.toFixed(1) || 'N/A'}</span>
-        </div>
+        
       </div>
       
+      {/* --- Content section (p-4) --- */}
       <div className="p-4">
         <div className="flex justify-between items-start mb-1">
           <div>
@@ -104,15 +122,8 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
             ))}
           </div>
         </div>
-
-        <div className="flex items-center gap-3 text-gray-600 my-3">
-          {amenities?.slice(0, 4).map(getAmenityIcon)}
-          {amenities?.length > 4 && (
-            <span className="text-xs font-medium">+{amenities.length - 4} more</span>
-          )}
-        </div>
-
-        <div className="flex justify-between items-center mt-4">
+        
+        <div className="flex justify-between items-center mt-4 border-t border-gray-100 pt-3">
           <div>
             <span className="text-2xl font-bold text-gray-900">
               {formatCurrency(base_price, currency).replace(/\.00$/, '')}
@@ -134,8 +145,7 @@ export const HotelCard = ({ hotel, onClick }: HotelCardProps) => {
   );
 };
 
-// --- Main App (for Demo) ---
-// This default export is included so you can run this file and see the component.
+// --- Default Export Wrapper (for running in Canvas) ---
 export default function App() {
   const handleCardClick = (hotel: Hotel) => {
     console.log("Card clicked:", hotel.name);
@@ -150,7 +160,7 @@ export default function App() {
     stars: 4,
     popularity_score: 4.5,
     description: "A demo hotel",
-    amenities: ["wifi", "pool", "ac"],
+    amenities: ["wifi", "pool", "ac", "parking", "restaurant"],
     gallery: [],
     thumbnail: "https://placehold.co/400x300/3498db/ffffff?text=Demo+Hotel",
     base_price: 3000,

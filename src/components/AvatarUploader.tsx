@@ -45,16 +45,26 @@ export const AvatarUploader = ({ user, onAvatarChange }: AvatarUploaderProps) =>
     if (!file) return;
 
     setIsLoading(true);
-    const success = await onAvatarChange(file); // Simulate upload
-    setIsLoading(false);
+    let success = false; 
 
-    if (success) {
-      setFile(null); // Clear file queue
-    } else {
-      // Handle error (e.g., show a toast)
-      console.error("Upload failed");
-      // Revert preview if upload fails and we're not keeping the optimistic update
-      // setPreview(user.avatar_url || null);
+    try {
+      // Execute the parent's mutation wrapper
+      success = await onAvatarChange(file); 
+      
+    } catch (e) {
+        // Log error but proceed to finally block
+        console.error("Avatar upload failed in mutation:", e);
+    } finally {
+        // CRUCIAL FIX: Ensure loading state is turned OFF regardless of outcome
+        setIsLoading(false); 
+        
+        // Update UI state only if the external handler reported success
+        if (success) {
+            setFile(null); // Clear file queue
+        } else {
+            // If upload failed, revert the preview to the previous URL
+            setPreview(user.avatar_url || null); 
+        }
     }
   };
 
