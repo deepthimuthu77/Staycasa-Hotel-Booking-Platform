@@ -185,11 +185,15 @@ export const BrowsePage = () => {
   return (
     <div className="bg-gray-100 min-h-screen">
       
-      {/* --- Header & Search Bar --- */}
+      {/* --- Header & Search Bar (MODIFIED) --- */}
       <header className="sticky top-0 z-30 bg-white shadow-sm p-4">
         <div className="container mx-auto max-w-7xl">
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            <h1 className="text-2xl font-bold text-blue-600">ProBooker</h1>
+          {/* (MODIFIED) Added 'justify-center' */}
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+            
+            {/* --- (DELETED) This line was the duplicate logo --- */}
+            {/* <h1 className="text-2xl font-bold text-blue-600">ProBooker</h1> */}
+
             <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 w-full max-w-3xl">
               <SearchBar 
                 query={query} 

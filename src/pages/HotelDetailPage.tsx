@@ -23,6 +23,11 @@ import {
   BarChart3, // For review histogram
   AlertCircle, // For availability status
   CheckCircle, // For availability status
+  Waves,    // (NEW) Added
+  Dumbbell, // (NEW) Added
+  Bath,     // (FIX) Replaced 'Spa' with 'Bath'
+  Coffee,   // (NEW) Added
+  UserCheck // (NEW) Added
 } from 'lucide-react';
 
 // (NEW) React Query Imports
@@ -73,18 +78,8 @@ import type {
 type ReviewFormData = z.infer<typeof reviewSchema>;
 
 
-// --- CHILD COMPONENT: Header (No change) ---
-const Header = () => (
-  <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
-    <div className="container mx-auto max-w-7xl flex justify-between items-center">
-      <a href="/" className="text-2xl font-bold text-blue-600">ProBooker</a>
-      <a href="/" className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600">
-        <ChevronLeft size={16} />
-        Back to search
-      </a>
-    </div>
-  </header>
-);
+// --- (DELETED) CHILD COMPONENT: Header ---
+// This is no longer needed as App.tsx provides a global header.
 
 // --- CHILD COMPONENT: GuestSelector (No change) ---
 type GuestSelectorProps = { count: GuestCount; onChange: (count: GuestCount) => void; };
@@ -123,31 +118,48 @@ export const GuestSelector = ({ count, onChange }: GuestSelectorProps) => {
 };
 
 
-// --- CHILD COMPONENT: AmenityIcon (No change) ---
+// --- (MODIFIED) CHILD COMPONENT: AmenityIcon ---
 const AmenityIcon: React.FC<{ amenity: string }> = ({ amenity }) => {
   const iconSize = 18;
+  
+  // (MODIFIED) Expanded the map to include new icons
   const map: Record<string, React.ComponentType<any>> = {
-    wifi: Wifi,
+    'wifi': Wifi,
     'free wifi': Wifi,
-    restaurant: Utensils,
+    'restaurant': Utensils,
     'restaurant on-site': Utensils,
     'air conditioning': Wind,
-    ac: Wind,
-    parking: ParkingCircle,
+    'ac': Wind,
+    'parking': ParkingCircle,
     'free parking': ParkingCircle,
-    breakfast: Check,
-    'breakfast included': Check,
-    pool: Check,
+    'breakfast': Coffee,
+    'breakfast included': Coffee,
+    'pool': Waves,
+    'gym': Dumbbell,
+    'spa': Bath, // <-- (FIX) Using 'Bath' here
+    'butler service': UserCheck,
     'room service': Utensils,
     'pet friendly': Check,
-    default: Check,
+    'helicopter': Check, // Using Check as a default
+    'private villa': Check, // Using Check as a default
+    'default': Check,
   };
+  
   const key = (amenity || '').toLowerCase();
-  const Matched = Object.entries(map).find(([k]) => k !== 'default' && key.includes(k))?.[1] ?? map.default;
+  
+  // (MODIFIED) Updated matching logic to be more robust
+  let MatchedIcon = map.default;
+  for (const [mapKey, IconComponent] of Object.entries(map)) {
+    if (mapKey !== 'default' && key.includes(mapKey)) {
+      MatchedIcon = IconComponent;
+      break;
+    }
+  }
+
   return (
     <div className="flex items-center gap-2 p-2 rounded-md bg-gray-50 border border-gray-100">
-      <Matched size={iconSize} className="text-gray-600" />
-      <span className="text-sm text-gray-700">{amenity}</span>
+      <MatchedIcon size={iconSize} className="text-gray-600" />
+      <span className="text-sm text-gray-700 capitalize">{amenity}</span>
     </div>
   );
 };
@@ -621,7 +633,7 @@ export const HotelDetailPage = () => {
   if (hotelQuery.isLoading) {
     return (
       <div className="bg-gray-100 min-h-screen">
-        <Header />
+        {/* <Header /> */} {/* <-- DELETED */}
         <div className="flex justify-center items-center h-96">
           <Loader2 size={48} className="animate-spin text-blue-600" />
         </div>
@@ -632,7 +644,7 @@ export const HotelDetailPage = () => {
   if (hotelQuery.isError || !hotel) {
     return (
       <div className="bg-gray-100 min-h-screen">
-        <Header />
+        {/* <Header /> */} {/* <-- DELETED */}
         <div className="text-center py-20">
           <h1 className="text-2xl font-bold">Hotel not found</h1>
           <p className="text-gray-600">{(hotelQuery.error as Error)?.message || 'The hotel you are looking for does not exist.'}</p>
@@ -683,7 +695,7 @@ export const HotelDetailPage = () => {
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      <Header />
+      {/* <Header /> */} {/* <-- DELETED */}
 
       <main className="container mx-auto max-w-7xl p-4 mt-6">
         {/* --- Hero Gallery --- */}

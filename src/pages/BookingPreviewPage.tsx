@@ -62,23 +62,8 @@ const generateBookingReference = () => {
   return `PRO-${date}-${random}`;
 };
 
-// --- CHILD COMPONENT: Header (No change) ---
-const Header = () => (
-  <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
-    <div className="container mx-auto max-w-7xl flex justify-between items-center">
-      <a href="/" className="text-2xl font-bold text-blue-600">
-        ProBooker
-      </a>
-      <a
-        href="/"
-        className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600"
-      >
-        <ChevronLeft size={16} />
-        Back to search
-      </a>
-    </div>
-  </header>
-);
+// --- (DELETED) CHILD COMPONENT: Header ---
+// The main header is now in App.tsx
 
 // --- PAGE COMPONENT: BookingPreviewPage (UPDATED) ---
 export const BookingPreviewPage = () => {
@@ -117,7 +102,7 @@ export const BookingPreviewPage = () => {
   if (!bookingData) {
     return (
       <div className="bg-gray-100 min-h-screen">
-        <Header />
+        {/* <Header /> */} {/* <-- DELETED */}
         <div className="flex justify-center items-center h-96">
           <Loader2 size={48} className="animate-spin text-blue-600" />
         </div>
@@ -238,17 +223,18 @@ export const BookingPreviewPage = () => {
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      <Header />
+      {/* <Header /> */} {/* <-- DELETED */}
       <main className="container mx-auto max-w-7xl p-4 mt-6">
         {/* (NEW) Form tag now calls onFormSubmit */}
         <form onSubmit={handleSubmit(onFormSubmit)}>
-          <a
-            href="/"
+          <button
+            type="button" // Use type="button" to prevent form submission
+            onClick={() => navigate(-1)} // Go back to the previous page
             className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-blue-600 mb-4"
           >
             <ChevronLeft size={16} />
             Back
-          </a>
+          </button>
           <h1 className="text-3xl font-bold text-gray-900 mb-6">
             Confirm your booking
           </h1>

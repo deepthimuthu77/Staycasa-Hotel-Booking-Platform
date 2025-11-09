@@ -37,24 +37,8 @@ type FetchedBooking = Booking & {
   hotels: Hotel | null; // Supabase join will return 'hotels' object
 };
 
-// --- CHILD COMPONENT: Header ---
-const Header = () => (
-  <header className="sticky top-0 z-30 bg-white shadow-sm p-4 border-b border-gray-200">
-    <div className="container mx-auto max-w-7xl flex justify-between items-center">
-      <a href="/" className="text-2xl font-bold text-blue-600">
-        ProBooker
-      </a>
-      <div className="flex items-center gap-4">
-        <a href="/bookings" className="text-sm font-medium text-gray-700 hover:text-blue-600">
-          My Bookings
-        </a>
-        <a href="/profile" className="text-sm font-medium text-gray-700 hover:text-blue-600">
-          My Account
-        </a>
-      </div>
-    </div>
-  </header>
-);
+// --- (DELETED) CHILD COMPONENT: Header ---
+// The main header is now in App.tsx
 
 // --- CHILD COMPONENT: BookingInfoRow ---
 type BookingInfoRowProps = {
@@ -183,7 +167,7 @@ export const BookingConfirmationPage = () => {
   if (isLoading) {
     return (
       <div className="bg-gray-100 min-h-screen">
-        <Header />
+        {/* <Header /> */} {/* <-- DELETED */}
         <main className="container mx-auto max-w-3xl p-4 mt-10 mb-20">
           <div className="bg-white p-8 rounded-xl shadow-xl border border-gray-100 flex flex-col items-center text-center h-96 justify-center">
             <Loader2 size={64} className="text-blue-600 animate-spin" />
@@ -200,7 +184,7 @@ export const BookingConfirmationPage = () => {
   if (isError || !booking) {
     return (
       <div className="bg-gray-100 min-h-screen">
-        <Header />
+        {/* <Header /> */} {/* <-- DELETED */}
         <main className="container mx-auto max-w-3xl p-4 mt-10 mb-20">
           <div className="bg-white p-8 rounded-xl shadow-xl border border-gray-100 flex flex-col items-center text-center h-96 justify-center">
             <AlertCircle size={64} className="text-red-600" />
@@ -229,7 +213,7 @@ export const BookingConfirmationPage = () => {
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      <Header />
+      {/* <Header /> */} {/* <-- DELETED */}
       <main className="container mx-auto max-w-3xl p-4 mt-10 mb-20">
         <div className="bg-white p-8 rounded-xl shadow-xl border border-gray-100 flex flex-col items-center text-center">
           <CheckCircle size={64} className="text-green-600" />
