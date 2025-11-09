@@ -1,6 +1,4 @@
 
-
-````markdown
 <!-- PROJECT LOGO -->
 <p align="center">
   <img src="logo.png" alt="StayCasa logo" width="96"/>
