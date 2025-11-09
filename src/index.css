@@ -1,12 +1,75 @@
 /* Import Tailwind's base styles, components, and utilities */
-
 @import "tailwindcss";
 
+/* Load a premium serif font for headings */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600&display=swap');
 
-/* Add a global background color.
-  We use the hex code for gray-100 to avoid PostCSS build order issues.
-*/
-body {
-  background-color: #f3f4f6; /* This is Tailwind's gray-100 */
+@layer base {
+  :root {
+    /* LUXURY ONYX & GOLD THEME DEFINITIONS */
+    --luxe-onyx: #0f172a;    /* Deepest slate/onyx for primary actions */
+    --luxe-gold: #d4af37;    /* Classic sophisticated gold accent */
+    --luxe-cream: #fafaf9;   /* Warm off-white background */
+    --luxe-text: #334155;    /* Softer dark grey for readable text */
+  }
+
+  body {
+    background-color: var(--luxe-cream);
+    color: var(--luxe-text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+  }
+
+  /* --- TYPOGRAPHY --- */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+    color: var(--luxe-onyx);
+    letter-spacing: -0.025em;
+  }
+
+  /* --- COLOR OVERRIDES (Forcing the Onyx & Gold Theme) --- */
+  
+  /* 1. PRIMARY ACTIONS (Buttons) -> ONYX */
+  /* Solid, high-contrast dark buttons for a premium feel */
+  .bg-blue-600 {
+    background-color: var(--luxe-onyx) !important;
+  }
+  .hover\:bg-blue-700:hover {
+    background-color: #000000 !important; /* Pure black on hover for subtle depth */
+  }
+
+  /* 2. ACCENTS (Icons, Links, Logo text) -> GOLD */
+  /* This is what was missing. We map standard blue text to our premium gold. */
+  .text-blue-600 {
+    color: var(--luxe-gold) !important;
+  }
+
+  /* 3. UNIFYING STARS -> GOLD */
+  /* Ensure star ratings match the theme perfectly */
+  .text-yellow-400, .text-yellow-500 {
+      color: var(--luxe-gold) !important;
+  }
+
+  /* 4. TEXT REFINEMENTS */
+  /* Ensure dark text uses our specific Onyx shade */
+  .text-gray-900, .text-gray-800 {
+      color: var(--luxe-onyx) !important;
+  }
+
+  /* --- COMPONENT REFINEMENTS --- */
+  /* Soft, premium card styles */
+  .bg-white {
+    background-color: #ffffff;
+    border: 1px solid #e7e5e4; /* Warm light grey border */
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05) !important;
+  }
 }
 
+/* Retain smooth transitions */
+@layer utilities {
+  .transition-smooth {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+}
