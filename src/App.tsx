@@ -182,7 +182,7 @@ const Layout = () => {
         {/* (MODIFIED) Changed max-w-7xl to max-w-screen-2xl */}
         <nav className="container mx-auto max-w-screen-2xl flex justify-between items-center h-16 p-4">
           <Link to="/" className="text-2xl font-bold text-blue-600">
-            ProBooker
+            Staycasa
           </Link>
           <div className="flex items-center gap-4">
             <Link

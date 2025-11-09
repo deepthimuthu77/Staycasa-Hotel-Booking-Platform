@@ -10,17 +10,8 @@ import {
   Wind,
   ParkingCircle,
   Check,
-  ChevronLeft,
-  Calendar,
-  Users,
-  Moon,
-  Plus,
-  Minus,
-  X,
-  MessageSquare,
   Share2,
   Loader2, // For loading
-  BarChart3, // For review histogram
   AlertCircle, // For availability status
   CheckCircle, // For availability status
   Waves,    // (NEW) Added
@@ -49,7 +40,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 
 // Import the DayPicker styles
 import 'react-day-picker/dist/style.css';
-import { format, differenceInCalendarDays } from 'date-fns';
+import { format } from 'date-fns';
 
 // Import the reusable DateRangePicker component
 import { DateRangePicker } from '../components/DateRangePicker';
@@ -211,7 +202,7 @@ const ReviewSummary = ({ reviews }: ReviewSummaryProps) => {
     <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 mt-6">
       <h3 className="text-xl font-semibold text-gray-800 mb-4">Guest Reviews</h3>
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="flex flex-col items-center justify-center bg-blue-600 text-white w-full sm:w-28 h-28 rounded-lg shadow-lg flex-shrink-0">
+        <div className="flex flex-col items-center justify-center bg-blue-600 text-white w-full sm:w-28 h-28 rounded-lg shadow-lg shrink-0">
           <span className="text-5xl font-bold">{averageRating}</span>
           <span className="text-sm font-medium">({reviews.length} reviews)</span>
         </div>
