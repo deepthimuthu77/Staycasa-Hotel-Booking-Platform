@@ -205,23 +205,23 @@ VITE_RESEND_API_KEY=
 
 ### Browse Hotels
 
-![Browse Hotels](assets/browse-page.png)
+![Browse Hotels](assets/browse-page.jpeg)
 
 ### Booking Confirmation
 
-![Booking Confirmation](assets/booking-confirmation.png)
+![Booking Confirmation](assets/booking-confirmation.jpeg)
 
 ### My Bookings Dashboard
 
-![My Bookings](assets/my-bookings.png)
+![My Bookings](assets/my-bookings.jpeg)
 
 ### My Account
 
-![My Account](assets/account-page.png)
+![My Account](assets/account-page.jpeg)
 
 ### Hotel Details
 
-![Hotel Detail](assets/hotel-detail.png)
+![Hotel Detail](assets/hotel-detail.jpeg)
 
 ---
 
@@ -259,6 +259,5 @@ VITE_RESEND_API_KEY=
 </p>
 ```
 
----
 
 
