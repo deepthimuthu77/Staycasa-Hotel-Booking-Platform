@@ -1,7 +1,7 @@
 
 <!-- PROJECT LOGO -->
 <p align="center">
-  <img src="https://img.icons8.com/color/96/000000/hotel-room.png" alt="StayCasa logo" width="96"/>
+  <img src="logo.png" alt="StayCasa logo" width="96"/>
 </p>
 
 <h1 align="center">🏨 StayCasa — Modern Full-Stack Hotel Booking Platform</h1>
@@ -230,5 +230,3 @@ VITE_RESEND_API_KEY=
 
 ---
 
-Would you like me to generate a **banner image** (hero-style GitHub cover: dark gradient background with “StayCasa” title + tech icons) to use at the top of your README?
-It makes the repo look like a funded startup project at first glance.
