@@ -33,7 +33,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ThreeTabSessionShell } from './layouts/ThreeTabSessionShell';
 
 // (NEW) Import the logo image (Path adjusted based on previous discussion)
-import logo from './assets/logo.jpg';
+import logo from './assets/logo.png';
 
 
 // --- REAL Auth Context ---
