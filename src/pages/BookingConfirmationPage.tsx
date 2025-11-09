@@ -19,7 +19,7 @@ import {
   AlertCircle, // (NEW) For errors
 } from 'lucide-react';
 import { format, differenceInCalendarDays, parseISO } from 'date-fns';
-import jsPDF from 'jspdf'; // (NEW) Import jsPDF for downloading
+// (DELETED) jsPDF import is no longer needed here
 
 // (NEW) Import React Query
 import { useQuery } from '@tanstack/react-query';
@@ -30,6 +30,9 @@ import { supabase } from '../lib/supabaseClient';
 // (NEW) Import types from the central data file
 import { formatCurrency } from '../data/data';
 import type { Booking, Hotel } from '../data/data';
+
+// (NEW) Import the new PDF generator
+import { downloadBookingPDF } from '../lib/pdfGenerator';
 
 // --- (NEW) TYPE DEFINITIONS ---
 // This type represents the data we fetch (a booking with its hotel)
@@ -84,8 +87,6 @@ export const BookingConfirmationPage = () => {
   const { ref } = useParams(); // Get the booking_reference from the URL
   const navigate = useNavigate();
 
-  // (REMOVED) useState for booking, isLoading, and error
-
   // --- (NEW) Fetch the booking data on load with React Query ---
   const { 
     data: booking, 
@@ -99,7 +100,7 @@ export const BookingConfirmationPage = () => {
     retry: false, // Don't retry if booking isn't found
   });
 
-  // --- (NEW) Action Handlers ---
+  // --- (MODIFIED) Action Handlers ---
   const handleShare = () => {
     if (navigator.share && booking && booking.hotels) {
       navigator
@@ -118,49 +119,11 @@ export const BookingConfirmationPage = () => {
     window.print();
   };
 
+  // (MODIFIED) This function now uses the new generator
   const handleDownload = () => {
-    if (!booking || !booking.hotels) return;
-    const hotel = booking.hotels;
-
-    // Create a new PDF document
-    const doc = new jsPDF();
-
-    // Add content to the PDF
-    doc.setFontSize(22);
-    doc.text('ProBooker', 105, 20, { align: 'center' });
-    doc.setFontSize(18);
-    doc.text('Booking Confirmation', 105, 30, { align: 'center' });
-
-    doc.setFontSize(14);
-    doc.text(`Reference: ${booking.booking_reference}`, 105, 40, { align: 'center' });
-
-    doc.setLineWidth(0.5);
-    doc.line(10, 45, 200, 45);
-
-    doc.setFontSize(12);
-    doc.text(`Hotel: ${hotel.name}`, 15, 60);
-    doc.text(`Address: ${hotel.address.street}, ${hotel.address.city}`, 15, 68);
-    
-    doc.text(`Check-in: ${format(parseISO(booking.check_in), 'EEE, dd MMM yyyy')}`, 15, 80);
-    doc.text(`Check-out: ${format(parseISO(booking.check_out), 'EEE, dd MMM yyyy')}`, 15, 88);
-    
-    const guests = `${booking.guests.adults} Adult(s), ${booking.guests.children} Kid(s)`
-    doc.text(`Guests: ${guests}`, 15, 96);
-
-    doc.line(10, 110, 200, 110);
-    doc.setFontSize(16);
-    doc.text(`Total Paid: ${formatCurrency(
-        booking.price_breakdown.total,
-        booking.price_breakdown.currency,
-        0 // Show no decimals
-      )}`, 15, 125);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(150);
-    doc.text('Thank you for booking with ProBooker!', 105, 140, { align: 'center' });
-
-    // Save the PDF
-    doc.save(`ProBooker-Confirmation-${booking.booking_reference}.pdf`);
+    if (booking) {
+      downloadBookingPDF(booking); // <-- This now calls the imported function
+    }
   };
 
   // --- Render Loading State ---

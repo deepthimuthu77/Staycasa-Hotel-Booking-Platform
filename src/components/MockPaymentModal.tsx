@@ -1,7 +1,7 @@
 // src/components/MockPaymentModal.tsx
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence, type Variants } from 'framer-motion'; // <-- IMPORT 'Variants' TYPE
+import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { 
   X, 
   QrCode, 
@@ -78,7 +78,7 @@ export const MockPaymentModal = ({
         
         setTimeout(() => {
           onPaymentSuccess(paymentMeta);
-          setPaymentState('INIT'); 
+          // setPaymentState('INIT'); // <-- (THE FIX: THIS LINE IS NOW REMOVED)
         }, 1500);
       } else {
         setPaymentState('FAILED');
@@ -101,13 +101,13 @@ export const MockPaymentModal = ({
   }, [isOpen]);
 
   // --- Modal background variant ---
-  const backdropVariants: Variants = { // <-- ADDED TYPE
+  const backdropVariants: Variants = {
     hidden: { opacity: 0 },
     visible: { opacity: 1 },
   };
 
   // --- Modal content variant ---
-  const modalVariants: Variants = { // <-- ADDED TYPE (This is the fix)
+  const modalVariants: Variants = {
     hidden: { opacity: 0, scale: 0.9, y: 50 },
     visible: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 400, damping: 25 } },
     exit: { opacity: 0, scale: 0.9, y: 50, transition: { duration: 0.2 } },
@@ -123,11 +123,12 @@ export const MockPaymentModal = ({
           animate="visible"
           exit="hidden"
           variants={backdropVariants}
-          onClick={onClose} 
+          // (MODIFIED) Disable backdrop click when busy
+          onClick={paymentState === 'PENDING' || paymentState === 'CONFIRMED' ? undefined : onClose} 
         >
           <motion.div 
             className="bg-white rounded-xl shadow-2xl w-full max-w-md m-4 transform"
-            variants={modalVariants} // This will no longer show an error
+            variants={modalVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -135,7 +136,12 @@ export const MockPaymentModal = ({
           >
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-800">Complete Payment</h2>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              {/* (MODIFIED) Disable 'X' button when busy */}
+              <button 
+                onClick={onClose} 
+                disabled={paymentState === 'PENDING' || paymentState === 'CONFIRMED'}
+                className="text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 <X size={24} />
               </button>
             </div>
@@ -159,7 +165,7 @@ export const MockPaymentModal = ({
                   <div className="flex w-full mb-4 rounded-lg bg-gray-100 p-1">
                     <button
                       onClick={() => setActiveTab('qr')}
-                      className={`w-1/D2 p-2 rounded-md font-semibold transition-colors ${
+                      className={`w-1/2 p-2 rounded-md font-semibold transition-colors ${
                         activeTab === 'qr' ? 'bg-white shadow' : 'text-gray-600'
                       }`}
                     >

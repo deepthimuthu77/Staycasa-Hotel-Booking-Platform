@@ -152,12 +152,12 @@ export type GuestCount = {
 export const formatCurrency = (
   amount: number, 
   currency: string = "INR", 
-  decimals: number = 2
+  decimals: number = 0 // <-- (THE FIX) Changed default from 2 to 0
 ): string => {
   return new Intl.NumberFormat('en-IN', { 
     style: 'currency', 
     currency: currency, 
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
+    minimumFractionDigits: decimals, // <-- This will now be 0
+    maximumFractionDigits: decimals  // <-- This will now be 0
   }).format(amount);
 };

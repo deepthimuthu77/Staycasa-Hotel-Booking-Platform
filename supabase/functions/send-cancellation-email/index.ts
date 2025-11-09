@@ -1,4 +1,4 @@
-// supabase/functions/send-confirmation-email/index.ts
+// supabase/functions/send-cancellation-email/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { Resend } from 'npm:resend@3.2.0'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     const userProfile = booking.users as { full_name: string };
     const hotel = booking.hotels as { name: string; address: { street: string; city: string }; thumbnail: string };
     
-    // --- (NEW) 5b. Get the user's email from the auth system ---
+    // 5b. Get the user's email from the auth system
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin
       .getUserById(booking.user_id);
 
@@ -93,22 +93,39 @@ Deno.serve(async (req) => {
     if (!hotel) throw new Error('Hotel not found for this booking');
 
     const checkIn = formatDate(booking.check_in);
-    const checkOut = formatDate(booking.check_out);
     const total = formatCurrency(booking.price_breakdown.total, booking.currency);
     const hotelAddress = `${hotel.address.street}, ${hotel.address.city}`;
 
-    // 7. Send the email using Resend
+    // 7. (NEW) Cancellation & Refund Logic
+    const checkInDate = new Date(booking.check_in);
+    const now = new Date();
+    // Calculate hours difference
+    const hoursDiff = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    const isRefundable = hoursDiff > 48;
+
+    const subject = isRefundable
+      ? `Booking Cancelled - Refund Processed (Ref: ${booking.booking_reference})`
+      : `Booking Cancelled (Ref: ${booking.booking_reference})`;
+
+    const refundMessage = isRefundable
+      ? `As you cancelled more than 48 hours before check-in, a full refund of <strong>${total}</strong> is being processed. It should appear on your original payment method within 5-10 business days.`
+      : `As this cancellation is within 48 hours of check-in, it is not eligible for a refund per our cancellation policy.`;
+
+    const refundStatus = isRefundable ? 'Refund Eligible' : 'Non-Refundable';
+    const refundColor = isRefundable ? '#007bff' : '#dc3545'; // Blue vs Red
+
+    // 8. Send the email using Resend
     await resend.emails.send({
-      from: 'ProBooker@houseofstk.com', 
+      from: 'ProBooker@houseofstk.com', // Use the same 'from' address
       to: [user.email],
-      subject: `Your Booking is Confirmed! (Ref: ${booking.booking_reference})`,
+      subject: subject,
       html: `
       <!DOCTYPE html>
       <html lang="en">
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Booking Confirmed</title>
+        <title>Booking Cancelled</title>
         <style>
           body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
           .container { width: 100%; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0; }
@@ -118,19 +135,18 @@ Deno.serve(async (req) => {
           .content p { margin-bottom: 24px; line-height: 1.6; color: #333; }
           .details-card { background-color: #f8f9fa; border-radius: 8px; padding: 24px; margin-top: 24px; }
           .details-card h3 { margin-top: 0; color: #333; }
-          .details-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #e0e0e0; }
+          .details-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e0e0e0; }
           .details-item:last-child { border-bottom: none; }
           .details-item strong { color: #555; }
-          .hotel-image { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 24px; }
-          .total-box { display: flex; justify-content: space-between; align-items: center; padding: 20px; background-color: #f8f9fa; border-radius: 8px; margin-top: 24px; }
-          .total-box span { font-size: 18px; color: #555; }
-          .total-box strong { font-size: 22px; color: #0d6efd; }
+          .refund-box { padding: 20px; border-radius: 8px; margin-top: 24px; background-color: ${isRefundable ? '#e6f7ff' : '#ffebee'}; border: 1px solid ${isRefundable ? '#b3e0ff' : '#ffcdd2'}; }
+          .refund-box h3 { margin-top: 0; color: ${refundColor}; }
+          .refund-box p { color: #333; }
           .footer { text-align: center; padding: 24px; font-size: 12px; color: #888; background-color: #f8f9fa; }
         </style>
       </head>
       <body style="background-color: #f4f4f4; padding: 20px;">
         <span style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-          Your booking at ${hotel.name} is confirmed! (Ref: ${booking.booking_reference})
+          Your booking (Ref: ${booking.booking_reference}) has been cancelled. ${refundStatus}.
         </span>
       
         <table class="container" role="presentation" border="0" cellpadding="0" cellspacing="0">
@@ -144,14 +160,12 @@ Deno.serve(async (req) => {
           <tr>
             <td>
               <div class="content">
-                <h2 style="font-size: 24px; color: #28a745; margin-top: 0;">Booking Confirmed!</h2>
+                <h2 style="font-size: 24px; color: #dc3545; margin-top: 0;">Booking Cancelled</h2>
                 <p>Hello ${user.full_name || 'Guest'},</p>
-                <p>Your booking at <strong>${hotel.name}</strong> is confirmed. We can't wait to host you!</p>
-                
-                <img src="${hotel.thumbnail || 'https://placehold.co/600x200'}" alt="${hotel.name} Image" class="hotel-image">
-
+                <p>This email is to confirm that your booking at <strong>${hotel.name}</strong> has been successfully cancelled.</p>
+      
                 <div class="details-card">
-                  <h3>Your Booking Details</h3>
+                  <h3>Cancellation Details</h3>
                   <div class="details-item">
                     <span>Reference:</span>
                     <strong>${booking.booking_reference}</strong>
@@ -165,21 +179,17 @@ Deno.serve(async (req) => {
                     <strong>${hotelAddress}</strong>
                   </div>
                   <div class="details-item">
-                    <span>Check-in:</span>
+                    <span>Original Check-in:</span>
                     <strong>${checkIn}</strong>
                   </div>
-                  <div class="details-item">
-                    <span>Check-out:</span>
-                    <strong>${checkOut}</strong>
-                  </div>
                 </div>
       
-                <div class="total-box">
-                  <span>Total Paid:</span>
-                  <strong>${total}</strong>
+                <div class="refund-box" style="background-color: ${isRefundable ? '#e6f7ff' : '#ffebee'}; border: 1px solid ${isRefundable ? '#b3e0ff' : '#ffcdd2'};">
+                  <h3 style="color: ${refundColor};">${refundStatus}</h3>
+                  <p style="margin-bottom: 0;">${refundMessage}</p>
                 </div>
       
-                <p style="margin-top: 24px;">Thank you for booking with ProBooker.</p>
+                <p style="margin-top: 24px;">We're sorry to see you go. We hope you'll book with ProBooker again in the future.</p>
               </div>
             </td>
           </tr>
@@ -196,14 +206,14 @@ Deno.serve(async (req) => {
       `,
     });
 
-    // 8. Return a success response
+    // 9. Return a success response
     return new Response(JSON.stringify({ success: true, ref: booking.booking_reference }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
     });
 
   } catch (error) {
-    // 9. Return an error response
+    // 10. Return an error response
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 

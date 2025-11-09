@@ -62,9 +62,6 @@ const generateBookingReference = () => {
   return `PRO-${date}-${random}`;
 };
 
-// --- (DELETED) CHILD COMPONENT: Header ---
-// The main header is now in App.tsx
-
 // --- PAGE COMPONENT: BookingPreviewPage (UPDATED) ---
 export const BookingPreviewPage = () => {
   const navigate = useNavigate();
@@ -102,7 +99,6 @@ export const BookingPreviewPage = () => {
   if (!bookingData) {
     return (
       <div className="bg-gray-100 min-h-screen">
-        {/* <Header /> */} {/* <-- DELETED */}
         <div className="flex justify-center items-center h-96">
           <Loader2 size={48} className="animate-spin text-blue-600" />
         </div>
@@ -163,7 +159,7 @@ export const BookingPreviewPage = () => {
     }
   });
 
-  // --- (NEW) Mutation for confirming the payment ---
+  // --- (MODIFIED) Mutation for confirming the payment ---
   const confirmPaymentMutation = useMutation({
     mutationFn: async (paymentMeta: object) => {
       if (!pendingBooking) {
@@ -184,12 +180,16 @@ export const BookingPreviewPage = () => {
 
       if (error) throw error;
 
-      // 2. Trigger the backend function to send the email
-      await supabase.functions.invoke('send-confirmation-email', {
+      // 2. (MODIFIED) Trigger the email function but DO NOT wait for it.
+      supabase.functions.invoke('send-confirmation-email', {
         body: { booking_id: data.id },
+      }).then(({ error: emailError }) => {
+        if (emailError) {
+          console.error("Failed to send confirmation email:", emailError.message);
+        }
       });
       
-      return data as Booking;
+      return data as Booking; // Return the booking data immediately
     },
     onSuccess: (data) => {
       // 3. Invalidate 'bookings' query to refresh "My Bookings" page
@@ -200,11 +200,10 @@ export const BookingPreviewPage = () => {
       navigate(`/booking/confirmation/${data.booking_reference}`);
     },
     onError: (error) => {
-      console.error('Error confirming payment or sending email:', error);
+      console.error('Error confirming payment:', error);
       alert(
-        'Payment was successful but we failed to send your confirmation email. Please contact support.'
+        'Your payment was successful, but we failed to save the confirmation. Please contact support.'
       );
-      // Still navigate to confirmation, as payment was successful
       if (pendingBooking) {
         navigate(`/booking/confirmation/${pendingBooking.booking_reference}`);
       }
@@ -216,16 +215,17 @@ export const BookingPreviewPage = () => {
     createBookingMutation.mutate(formData);
   };
 
+  // --- (THE FIX) ---
+  // We remove the alert() and setIsModalOpen(false) from this function.
+  // This allows the modal to remain open and show its own "Failed" state.
   const handlePaymentFailure = () => {
-    setIsModalOpen(false);
-    alert('Payment Failed. Please try again.');
+    console.error("Payment Failed. User can retry in modal.");
   };
+  // --- (END OF FIX) ---
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      {/* <Header /> */} {/* <-- DELETED */}
       <main className="container mx-auto max-w-7xl p-4 mt-6">
-        {/* (NEW) Form tag now calls onFormSubmit */}
         <form onSubmit={handleSubmit(onFormSubmit)}>
           <button
             type="button" // Use type="button" to prevent form submission

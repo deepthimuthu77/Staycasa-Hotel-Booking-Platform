@@ -1,6 +1,6 @@
 // src/pages/MyBookingsPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Briefcase,
   Calendar,
@@ -12,19 +12,25 @@ import {
   RefreshCw,
   MessageSquare, // Icon for Contact
   Loader2,
+  AlertTriangle, // (NEW) For modal warning
+  X,               // (NEW) For modal close
 } from 'lucide-react';
 import {
   format,
   differenceInCalendarDays,
+  differenceInHours, // (NEW) For refund logic
   isPast,
   isFuture,
   isToday,
   parseISO,
 } from 'date-fns';
-import jsPDF from 'jspdf'; // (NEW) Import jsPDF for downloading
+// (DELETED) jsPDF import is no longer needed here
 
 // (NEW) React Query Imports
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// (NEW) Framer Motion for modal animation
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Import the real Supabase client and auth hook
 import { supabase } from '../lib/supabaseClient';
@@ -39,90 +45,137 @@ import type {
   PriceBreakdown,
 } from '../data/data';
 
+// (NEW) Import the new PDF generator
+import { downloadBookingPDF } from '../lib/pdfGenerator';
+
 // --- TYPE DEFINITIONS ---
 type FetchedBooking = Omit<Booking, 'hotel'> & {
   hotels: Hotel | null;
 };
 
-// --- (NEW) Centralized PDF Download Logic ---
-// (No changes to this function)
-const downloadBookingPDF = (booking: FetchedBooking) => {
-  const { hotels: hotel } = booking;
-  if (!hotel) {
-    alert('Cannot download receipt: Hotel data is missing.');
-    return;
-  }
-
-  // Create a new PDF document
-  const doc = new jsPDF();
-
-  // Add content to the PDF
-  doc.setFontSize(22);
-  doc.text('ProBooker', 105, 20, { align: 'center' });
-  doc.setFontSize(18);
-  doc.text('Booking Receipt', 105, 30, { align: 'center' });
-
-  doc.setFontSize(14);
-  doc.text(`Reference: ${booking.booking_reference}`, 105, 40, {
-    align: 'center',
-  });
-
-  doc.setLineWidth(0.5);
-  doc.line(10, 45, 200, 45);
-
-  doc.setFontSize(12);
-  doc.text(`Hotel: ${hotel.name}`, 15, 60);
-  doc.text(`Address: ${hotel.address.street}, ${hotel.address.city}`, 15, 68);
-
-  doc.text(
-    `Check-in: ${format(parseISO(booking.check_in), 'EEE, dd MMM yyyy')}`,
-    15,
-    80
-  );
-  doc.text(
-    `Check-out: ${format(parseISO(booking.check_out), 'EEE, dd MMM yyyy')}`,
-    15,
-    88
-  );
-
-  const guests = `${booking.guests.adults} Adult(s), ${booking.guests.children} Kid(s)`;
-  doc.text(`Guests: ${guests}`, 15, 96);
-
-  doc.line(10, 110, 200, 110);
-  doc.setFontSize(16);
-  doc.text(
-    `Total Paid: ${formatCurrency(
-      booking.price_breakdown.total,
-      booking.price_breakdown.currency,
-      0 // Show no decimals
-    )}`,
-    15,
-    125
-  );
-
-  doc.setFontSize(10);
-  doc.setTextColor(150);
-  doc.text('Thank you for booking with ProBooker!', 105, 140, {
-    align: 'center',
-  });
-
-  // Save the PDF
-  doc.save(`ProBooker-Receipt-${booking.booking_reference}.pdf`);
+// --- (NEW) Cancel Booking Modal Component ---
+type CancelModalProps = {
+  booking: FetchedBooking | null;
+  onClose: () => void;
+  onConfirm: () => void;
+  isPending: boolean;
 };
 
+const CancelBookingModal = ({ booking, onClose, onConfirm, isPending }: CancelModalProps) => {
+  const isOpen = !!booking;
+
+  // (NEW) Refund Logic: Check if check-in is more than 48 hours away
+  const isRefundable = useMemo(() => {
+    if (!booking) return false;
+    const checkInDate = parseISO(booking.check_in);
+    return differenceInHours(checkInDate, new Date()) > 48;
+  }, [booking]);
+
+  const warning = isRefundable 
+    ? "You are eligible for a full refund."
+    : "You are past the free cancellation period and will not be refunded.";
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        >
+          <motion.div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-lg m-4"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-800">Cancel Booking</h2>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 text-center">
+                Are you sure you want to cancel your booking at
+                <br />
+                <strong>{booking?.hotels?.name}?</strong>
+              </h3>
+              
+              {/* (NEW) Refund Policy Warning */}
+              <div 
+                className={`mt-4 p-4 rounded-lg flex items-start gap-3 ${
+                  isRefundable 
+                    ? 'bg-blue-50 border border-blue-200' 
+                    : 'bg-red-50 border border-red-200'
+                }`}
+              >
+                <AlertTriangle 
+                  size={24} 
+                  className={isRefundable ? 'text-blue-600' : 'text-red-600'} 
+                />
+                <div>
+                  <h4 
+                    className={`font-semibold ${
+                      isRefundable ? 'text-blue-800' : 'text-red-800'
+                    }`}
+                  >
+                    {isRefundable ? 'Refund Eligible' : 'Non-Refundable'}
+                  </h4>
+                  <p 
+                    className={`text-sm ${
+                      isRefundable ? 'text-blue-700' : 'text-red-700'
+                    }`}
+                  >
+                    {warning}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={isPending}
+                  className="px-5 py-2.5 rounded-lg font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200"
+                >
+                  Go Back
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={isPending}
+                  className="px-5 py-2.5 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-gray-400 flex items-center gap-2"
+                >
+                  {isPending && <Loader2 size={18} className="animate-spin" />}
+                  Yes, Cancel Booking
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+
 // --- CHILD COMPONENT: BookingCard (UPDATED) ---
-// (No changes to this component)
 type BookingCardProps = {
   booking: FetchedBooking;
   statusType: BookingStatus;
-  onCancel: (bookingId: string) => void;
+  onCancel: (booking: FetchedBooking) => void; // (MODIFIED) Prop type
   onDownload: (booking: FetchedBooking) => void; 
 };
 
 const BookingCard = ({
   booking,
   statusType,
-  onCancel,
+  onCancel, // (MODIFIED) This is now a function that receives the booking
   onDownload, 
 }: BookingCardProps) => {
   const {
@@ -148,6 +201,7 @@ const BookingCard = ({
   const nights = differenceInCalendarDays(checkOutDate, checkInDate);
 
   const StatusBadge = () => {
+    // ... (StatusBadge logic is unchanged)
     let badgeColor = '';
     let badgeText = '';
 
@@ -248,13 +302,8 @@ const BookingCard = ({
           {/* Show Cancel button ONLY for upcoming bookings */}
           {statusType === 'upcoming' && (
             <button
-              onClick={() => {
-                if (
-                  window.confirm('Are you sure you want to cancel this booking?')
-                ) {
-                  onCancel(booking.id);
-                }
-              }}
+              // (MODIFIED) Removed window.confirm, just call onCancel
+              onClick={() => onCancel(booking)}
               className="flex items-center gap-1.5 text-sm font-semibold text-red-600 hover:text-red-800 px-3 py-1.5 rounded-lg hover:bg-red-100"
             >
               <XCircle size={16} />
@@ -304,8 +353,8 @@ export const MyBookingsPage = () => {
   type Tab = 'upcoming' | 'ongoing' | 'past' | 'cancelled';
   const [activeTab, setActiveTab] = useState<Tab>('upcoming');
 
-  // (REMOVED) bookings and isLoading states
-  // (REMOVED) isCancelling state
+  // (NEW) State for the cancellation modal
+  const [bookingToCancel, setBookingToCancel] = useState<FetchedBooking | null>(null);
   
   const auth = useAuth();
   const queryClient = useQueryClient(); // (NEW)
@@ -317,30 +366,52 @@ export const MyBookingsPage = () => {
     enabled: !!auth?.session?.user, // Only run if user is logged in
   });
 
-  // (REMOVED) useEffect for fetching bookings
-
-  // --- (NEW) Cancel Booking Mutation ---
+  // --- (MODIFIED) Cancel Booking Mutation ---
   const cancelBookingMutation = useMutation({
+    // (MODIFIED) The mutation function now needs to return the booking ID
     mutationFn: async (bookingId: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('id', bookingId)
-        .select()
+        .select('id') // Select the id
         .single();
 
       if (error) throw new Error(error.message);
+      return data.id; // Return the ID
     },
-    onSuccess: () => {
-      alert('Booking cancelled successfully.');
-      // (NEW) Invalidate the bookings query to refetch data
+    // (MODIFIED) The onSuccess handler now receives the ID
+    onSuccess: (booking_id) => {
+      // 1. Invalidate the query to refetch data
       queryClient.invalidateQueries({ queryKey: ['bookings', auth?.session?.user?.id] });
+
+      // 2. (NEW) Fire-and-forget the cancellation email
+      supabase.functions.invoke('send-cancellation-email', {
+        body: { booking_id: booking_id },
+      }).then(({ error: emailError }) => {
+        if (emailError) {
+          // Log the error for debugging, but don't bother the user
+          console.error("Failed to send cancellation email:", emailError.message);
+        }
+      });
     },
     onError: (error) => {
       console.error('Error cancelling booking:', error);
       alert('Failed to cancel booking. Please try again.');
     },
   });
+
+  // (NEW) Handlers for opening and confirming the modal
+  const handleOpenCancelModal = (booking: FetchedBooking) => {
+    setBookingToCancel(booking);
+  };
+
+  const handleConfirmCancel = () => {
+    if (bookingToCancel) {
+      cancelBookingMutation.mutate(bookingToCancel.id);
+      setBookingToCancel(null); // Close modal on confirm
+    }
+  };
 
   const getBookingStatus = (booking: FetchedBooking): BookingStatus => {
     if (booking.status === 'cancelled') return 'cancelled';
@@ -403,8 +474,8 @@ export const MyBookingsPage = () => {
             key={booking.id}
             booking={booking}
             statusType={activeTab}
-            onCancel={cancelBookingMutation.mutate} // (NEW) Pass mutation function
-            onDownload={downloadBookingPDF} 
+            onCancel={handleOpenCancelModal} // (MODIFIED) Pass new handler
+            onDownload={downloadBookingPDF} // (MODIFIED) Calls imported PDF generator
           />
         ))}
       </div>
@@ -439,6 +510,14 @@ export const MyBookingsPage = () => {
       </div>
 
       {renderBookings()}
+
+      {/* (NEW) Render the modal */}
+      <CancelBookingModal
+        booking={bookingToCancel}
+        onClose={() => setBookingToCancel(null)}
+        onConfirm={handleConfirmCancel}
+        isPending={cancelBookingMutation.isPending}
+      />
     </div>
   );
 };
