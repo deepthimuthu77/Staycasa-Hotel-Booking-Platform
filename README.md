@@ -1,59 +1,81 @@
 
+---
+
+````markdown
 <!-- PROJECT LOGO -->
 <p align="center">
   <img src="logo.png" alt="StayCasa logo" width="96"/>
 </p>
 
-<h1 align="center">🏨 StayCasa — Modern Full-Stack Hotel Booking Platform</h1>
+<h1 align="center">StayCasa — Modern Full-Stack Hotel Booking Platform</h1>
 
 <p align="center">
-  <b>A sleek, full-stack booking platform built with React, TypeScript, and Supabase — crafted for performance, scalability, and luxury-grade user experience.</b>
-  <br/>
-  <br/>
+  <b>A refined, full-stack booking platform built with React, TypeScript, and Supabase — engineered for scalability, reliability, and a premium user experience.</b>
+  <br/><br/>
   <a href="https://github.com/your-username/staycasa"><strong>Explore the code »</strong></a>
+  <br/><br/>
+  <!-- Tech Stack Badges -->
+  <a href="https://react.dev">
+    <img src="https://img.shields.io/badge/Frontend-React%2018-61DAFB?style=for-the-badge&logo=react&logoColor=white"/>
+  </a>
+  <a href="https://supabase.com">
+    <img src="https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white"/>
+  </a>
+  <a href="https://www.typescriptlang.org">
+    <img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white"/>
+  </a>
+  <a href="https://tailwindcss.com">
+    <img src="https://img.shields.io/badge/Styling-Tailwind_CSS-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=white"/>
+  </a>
+  <a href="https://www.postgresql.org">
+    <img src="https://img.shields.io/badge/DB-PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white"/>
+  </a>
+  <a href="https://tanstack.com/query/latest">
+    <img src="https://img.shields.io/badge/State-React_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white"/>
+  </a>
   <br/>
-  <br/>
-  <img src="https://img.shields.io/badge/Frontend-React%2018-61DAFB?style=for-the-badge&logo=react&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Styling-Tailwind_CSS-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=white"/>
-  <img src="https://img.shields.io/badge/DB-PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white"/>
-  <img src="https://img.shields.io/badge/State-React_Query-FF4154?style=for-the-badge&logo=react-query&logoColor=white"/>
-  <br/>
-  <img src="https://img.shields.io/badge/Auth-Supabase_Auth-1E3A8A?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Email-Resend_API-FC5C7D?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/PDF-jsPDF-FFB347?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Map-React_Leaflet-32CD32?style=for-the-badge"/>
+  <a href="https://supabase.com/auth">
+    <img src="https://img.shields.io/badge/Auth-Supabase_Auth-1E3A8A?style=for-the-badge"/>
+  </a>
+  <a href="https://resend.com">
+    <img src="https://img.shields.io/badge/Email-Resend_API-FC5C7D?style=for-the-badge"/>
+  </a>
+  <a href="https://github.com/parallax/jsPDF">
+    <img src="https://img.shields.io/badge/PDF-jsPDF-FFB347?style=for-the-badge"/>
+  </a>
+  <a href="https://react-leaflet.js.org">
+    <img src="https://img.shields.io/badge/Map-React_Leaflet-32CD32?style=for-the-badge"/>
+  </a>
 </p>
 
 ---
 
-## 🌙 Overview
+## Overview
 
-**StayCasa** is a next-generation hotel booking platform designed to bridge elegant UI with powerful backend logic.  
-It delivers real-time room availability, secure authentication, automated email workflows, and dynamic pricing — all built with a modern, type-safe tech stack.
+**StayCasa** is a next-generation hotel booking platform that merges aesthetic design with robust backend logic.  
+It delivers real-time room availability, multi-step authentication, dynamic pricing, and automated transactional emails — all integrated into a seamless, modern UI.
 
-StayCasa is not just a clone of hotel platforms — it’s a **production-grade SaaS blueprint** optimized for reliability, speed, and developer joy.
+StayCasa demonstrates a production-grade SaaS foundation optimized for scalability, security, and elegance.
 
 ---
 
-## 🎨 Tech Stack Overview
+## Tech Stack Overview
 
 | Layer | Technology | Description |
 |-------|-------------|--------------|
-| **Frontend** | React 18 + TypeScript | Typed, modular UI |
-| **Styling** | Tailwind CSS + Framer Motion | Atomic design & fluid animations |
-| **Backend** | Supabase (Auth + PostgreSQL + Edge Functions) | Scalable BaaS backend |
-| **State Management** | React Query | Cached async data layer |
-| **Validation** | Zod + React Hook Form | Declarative schema-driven validation |
-| **Email API** | Resend | Automated transactional emails |
-| **PDF Engine** | jsPDF | Client-side receipt generation |
-| **Map Engine** | React Leaflet | Interactive hotel map visualization |
-| **Utility** | date-fns | Date logic and formatting |
+| Frontend | [React 18](https://react.dev) + [TypeScript](https://www.typescriptlang.org) | Modular, type-safe user interface |
+| Styling | [Tailwind CSS](https://tailwindcss.com) + [Framer Motion](https://www.framer.com/motion) | Scalable design system with micro-animations |
+| Backend | [Supabase](https://supabase.com) (Auth + PostgreSQL + Edge Functions) | Secure, serverless backend |
+| State Management | [React Query](https://tanstack.com/query/latest) | Cached asynchronous data layer |
+| Validation | [Zod](https://github.com/colinhacks/zod) + [React Hook Form](https://react-hook-form.com) | Schema-based data validation |
+| Email API | [Resend](https://resend.com) | Automated transactional emails |
+| PDF Engine | [jsPDF](https://github.com/parallax/jsPDF) | Client-side receipt generation |
+| Map Engine | [React Leaflet](https://react-leaflet.js.org) | Interactive location visualization |
+| Utility | [date-fns](https://date-fns.org) | Date operations and formatting |
 
 ---
 
-## 🧠 Architecture Snapshot
+## Architecture Snapshot
 
 ```bash
 staycasa/
@@ -62,98 +84,98 @@ staycasa/
 │   ├── pages/             # Page-level routes
 │   ├── layouts/           # Dashboard shells, shared structures
 │   ├── lib/               # Supabase client, schemas, utilities
-│   ├── data/              # Types, interfaces, constants
-│   └── main.tsx           # App entry point
+│   ├── data/              # TypeScript types and constants
+│   └── main.tsx           # Application entry point
 └── supabase/
-    ├── functions/         # Edge Functions for email flows
-    └── config.toml        # Supabase configuration
+    ├── functions/         # Edge Functions for email notifications
+    └── config.toml        # Supabase project configuration
 ````
 
 ---
 
-## 🔐 Authentication Flows
+## Authentication Flows
 
-**StayCasa Auth System** uses Supabase + Framer Motion transitions for seamless UX.
+The StayCasa authentication system uses Supabase and Framer Motion to enable seamless transitions between states.
 
-| Flow                 | Steps                        | Description                      |
-| -------------------- | ---------------------------- | -------------------------------- |
-| **Password Sign-In** | Email + Password             | Traditional auth with validation |
-| **Passwordless OTP** | Email → OTP Verify           | Secure, magic-link style login   |
-| **Sign-Up**          | Email → OTP → Password       | Multi-step signup wizard         |
-| **Password Reset**   | Logged-in & logged-out modes | Secure, context-aware reset flow |
+| Flow             | Steps                        | Description                             |
+| ---------------- | ---------------------------- | --------------------------------------- |
+| Password Sign-In | Email + Password             | Standard authentication with validation |
+| Passwordless OTP | Email → OTP Verify           | Secure, code-based login                |
+| Sign-Up          | Email → OTP → Password       | Two-step sign-up with password setup    |
+| Password Reset   | Logged-in & Logged-out modes | Context-aware secure reset flow         |
 
-All states sync in real-time via Supabase’s `onAuthStateChange()` listener.
-
----
-
-## 💡 Core Features
-
-### 🏨 Hotel Discovery
-
-* Infinite scrolling with React Query
-* Debounced smart search
-* Availability filter using Supabase RPC
-* Dynamic sorting and filtering
-
-### 💳 Booking Flow
-
-* Two-phase commit (pending → confirmed)
-* Mock payment system with 80% success simulation
-* Edge Function–triggered confirmation emails
-
-### 👤 Dashboard
-
-* Three-tab structure: Profile / Bookings / Reviews
-* Profile avatar upload via Supabase Storage
-* Refund eligibility logic (48-hour rule)
-* Review upsert system (`supabase.from('reviews').upsert()`)
-
-### 🧾 Utilities
-
-* `downloadBookingPDF()` — instant invoice generator
-* `calculatePrice()` — dynamic rate engine
-* `check_room_availability()` RPC — real-time availability
+Real-time state updates are handled via Supabase’s `onAuthStateChange()` listener.
 
 ---
 
-## ⚙️ Supabase Edge Functions
+## Core Features
 
-| Function                    | Purpose                                               |
-| --------------------------- | ----------------------------------------------------- |
-| **send-confirmation-email** | Sends booking confirmation via Resend                 |
-| **send-cancellation-email** | Re-validates refund window & sends cancellation email |
+### Hotel Discovery
 
-All Edge Functions run on **Deno runtime**, use **SERVICE_ROLE_KEY**, and ensure client-proof integrity.
+* Infinite scrolling using React Query
+* Debounced search for optimized performance
+* Availability filters through Supabase RPC
+* Dynamic pricing engine with demand and season modifiers
+
+### Booking Flow
+
+* Two-phase commit booking (`pending → confirmed`)
+* Mock payment simulation with success probability logic
+* Confirmation email via Supabase Edge Function and Resend API
+
+### Dashboard
+
+* Three-tab layout: Profile / My Bookings / My Stays
+* Avatar upload via Supabase Storage
+* Refund logic using `differenceInHours > 48`
+* Review upsert via `supabase.from('reviews').upsert()`
+
+### Utilities
+
+* `downloadBookingPDF()` → client-side invoice generator
+* `calculatePrice()` → modular pricing engine
+* `check_room_availability()` RPC → live room availability
 
 ---
 
-## 🖥️ Design Language
+## Supabase Edge Functions
+
+| Function                | Purpose                                                     |
+| ----------------------- | ----------------------------------------------------------- |
+| send-confirmation-email | Sends booking confirmation emails through Resend            |
+| send-cancellation-email | Validates refund window and sends cancellation confirmation |
+
+All functions use Deno runtime and Supabase’s `SERVICE_ROLE_KEY` for secure admin-level operations.
+
+---
+
+## Design Language
 
 * **Primary Color:** `#1E3A8A`
 * **Accent Color:** `#3B82F6`
-* **Background:** `#0F172A` (Dark mode)
-* **Text:** `#F9FAFB`
-* **Highlight Gradient:** `linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%)`
+* **Background:** `#FAFAFA`
+* **Text:** `#111827`
+* **Highlight Gradient:** `linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%)`
 
-**Typography:**
+Typography:
 
-* `Poppins` for headings
-* `Inter` for body text
-* Consistent rhythm, soft shadows, and smooth motion cues
+* Headings → `Poppins`
+* Body → `Inter`
+* Soft shadow accents, rounded corners, and high-contrast minimalism
 
 ---
 
-## 🧪 Testing
+## Testing
 
-| Type        | Framework             | Target                      |
+| Type        | Framework             | Focus                       |
 | ----------- | --------------------- | --------------------------- |
-| Unit        | Jest                  | Zod schemas, pricing engine |
-| Integration | React Testing Library | Auth & booking flow         |
-| E2E         | Cypress               | Real-world user paths       |
+| Unit        | Jest                  | Pricing engine, Zod schemas |
+| Integration | React Testing Library | Booking and authentication  |
+| E2E         | Cypress               | Full user journey coverage  |
 
 ---
 
-## 🛠️ Deployment Setup
+## Deployment Setup
 
 | Layer    | Platform            |
 | -------- | ------------------- |
@@ -163,21 +185,16 @@ All Edge Functions run on **Deno runtime**, use **SERVICE_ROLE_KEY**, and ensure
 | Email    | Resend              |
 | CI/CD    | GitHub Actions      |
 
-### ⚡ Run Locally
+### Local Setup
 
 ```bash
-# Clone repo
 git clone https://github.com/your-username/staycasa.git
 cd staycasa
-
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
 
-Set up environment variables:
+Environment variables:
 
 ```bash
 VITE_SUPABASE_URL=
@@ -187,46 +204,64 @@ VITE_RESEND_API_KEY=
 
 ---
 
-## 🧭 Roadmap
+## Preview
 
-* [ ] Stripe/Razorpay live payments
-* [ ] AI-powered price prediction
+### Browse Hotels
+
+![Browse Hotels](assets/browse-page.png)
+
+### Booking Confirmation
+
+![Booking Confirmation](assets/booking-confirmation.png)
+
+### My Bookings Dashboard
+
+![My Bookings](assets/my-bookings.png)
+
+### My Account
+
+![My Account](assets/account-page.png)
+
+### Hotel Details
+
+![Hotel Detail](assets/hotel-detail.png)
+
+---
+
+## Roadmap
+
+* [ ] Stripe / Razorpay live payments
+* [ ] AI-based price forecasting
 * [ ] Push notifications
-* [ ] Multi-language localization
+* [ ] Multi-language support
 * [ ] PWA optimization
 
 ---
 
-## 📸 Preview
+## Why StayCasa
 
-| Home                          | Booking                             | Dashboard                               |
-| ----------------------------- | ----------------------------------- | --------------------------------------- |
-| ![Home](assets/home-dark.png) | ![Booking](assets/booking-dark.png) | ![Dashboard](assets/dashboard-dark.png) |
-
----
-
-## 💎 Why StayCasa?
-
-* Production-level architecture in an open-source format
-* Enterprise design principles with serverless scalability
-* Built to **flex your full-stack credibility**
-* Proof that a booking platform can look **as elegant as it performs**
+* Built with a production-ready, enterprise-grade architecture
+* Clean modular design with an elegant UI/UX approach
+* Complete Supabase integration — Auth, Database, Edge Functions
+* Demonstrates full-stack depth across frontend, backend, and state management
+* Designed for performance, aesthetics, and scalability
 
 ---
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/your-username/staycasa?style=for-the-badge&color=blueviolet"/>
-  <img src="https://img.shields.io/github/forks/your-username/staycasa?style=for-the-badge&color=blue"/>
-  <img src="https://img.shields.io/github/issues/your-username/staycasa?style=for-the-badge&color=teal"/>
+  <img src="https://img.shields.io/github/stars/your-username/staycasa?style=for-the-badge&color=1E3A8A"/>
+  <img src="https://img.shields.io/github/forks/your-username/staycasa?style=for-the-badge&color=3B82F6"/>
+  <img src="https://img.shields.io/github/issues/your-username/staycasa?style=for-the-badge&color=64748B"/>
 </p>
 
 ---
 
 <p align="center">
   <b>StayCasa — Book Smarter. Stay Better.</b><br/>
-  <sub>Built with ❤️ using React, Supabase, and a lot of caffeine.</sub>
+  <sub>Built with precision, performance, and purpose.</sub>
 </p>
 ```
 
 ---
+
 
