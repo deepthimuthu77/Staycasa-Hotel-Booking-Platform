@@ -1,9 +1,4 @@
-Perfect. Here’s the **dark-mode GitHub README.md** for your project — now titled **StayCasa**.
-This version is styled for *maximum visual appeal*, *badge-driven tech credibility*, and *aesthetically balanced gradients* like top-tier open-source repos.
 
----
-
-````markdown
 <!-- PROJECT LOGO -->
 <p align="center">
   <img src="https://img.icons8.com/color/96/000000/hotel-room.png" alt="StayCasa logo" width="96"/>
