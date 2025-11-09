@@ -179,7 +179,8 @@ const Layout = () => {
   return (
     <div>
       <header className="sticky top-0 z-40 w-full bg-white/90 shadow-sm border-b border-gray-200 backdrop-blur-sm">
-        <nav className="container mx-auto max-w-7xl flex justify-between items-center h-16 p-4">
+        {/* (MODIFIED) Changed max-w-7xl to max-w-screen-2xl */}
+        <nav className="container mx-auto max-w-screen-2xl flex justify-between items-center h-16 p-4">
           <Link to="/" className="text-2xl font-bold text-blue-600">
             ProBooker
           </Link>

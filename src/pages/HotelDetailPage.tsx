@@ -1,7 +1,7 @@
 // src/pages/HotelDetailPage.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Star, 
   MapPin, 
@@ -471,19 +471,34 @@ export const HotelDetailPage = () => {
   const { slug } = useParams();
   const navigate = useNavigate(); 
   const auth = useAuth(); // (NEW) Get auth state
+  const location = useLocation(); // (NEW) Get location object
 
-  // (REMOVED) State for hotel, reviews, similarHotels, isLoading
+  // (NEW) Helper function to get initial dates from router state
+  const getInitialDates = (): DateRange => {
+    // Dates from router state are serialized to strings, so we must parse them back
+    const passedDates = location.state?.dates as { from?: string; to?: string } | undefined;
+    
+    // Check if the dates are valid before creating new Date objects
+    const from = (passedDates?.from && !isNaN(new Date(passedDates.from).getTime()))
+      ? new Date(passedDates.from) 
+      : undefined;
+      
+    const to = (passedDates?.to && !isNaN(new Date(passedDates.to).getTime()))
+      ? new Date(passedDates.to)
+      : undefined;
+    
+    return { from, to };
+  };
   
   // (NEW) State to track if the current user has already reviewed
   const [userReview, setUserReview] = useState<Review | null>(null);
   
-  // State for booking panel
-  const [dates, setDates] = useState<DateRange>({ from: undefined, to: undefined });
+  // (MODIFIED) Initialize 'dates' state using the function
+  const [dates, setDates] = useState<DateRange>(getInitialDates()); 
+  
   const [guests, setGuests] = useState<GuestCount>({ adults: 2, children: 0 });
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
-  // (REMOVED) State for availability check
-  
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown>(defaultPriceBreakdown);
 
   // --- (NEW) Data fetching with React Query ---
@@ -568,6 +583,9 @@ export const HotelDetailPage = () => {
   // Dynamic Price Calculation Logic (depends on hotel)
   useEffect(() => {
     if (dates.from && dates.to && hotel && selectedRoom) {
+      // Ensure dates are valid
+      if (isNaN(dates.from.getTime()) || isNaN(dates.to.getTime())) return;
+      
       const effectiveBasePrice = selectedRoom.base_price || hotel.base_price;
 
       const breakdown = calculatePrice(
@@ -585,8 +603,6 @@ export const HotelDetailPage = () => {
       });
     }
   }, [dates, hotel, selectedRoom]);
-
-  // (REMOVED) Real Availability Check Logic (now a useQuery)
 
 
   // Handle Book Now Click
@@ -690,6 +706,11 @@ export const HotelDetailPage = () => {
         </div>
       );
     }
+    // (NEW) Check for valid dates
+    if (!dates.from || !dates.to) {
+      return <p className="text-center text-gray-500">Select dates to check price</p>;
+    }
+    
     return <p className="text-center text-gray-500">Select dates to check price & availability</p>;
   };
 

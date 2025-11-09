@@ -4,12 +4,13 @@ import React, { useState, useEffect } from 'react';
 import { 
   SlidersHorizontal,
   Loader2,
-  ChevronDown // For the sort dropdown
+  ChevronDown 
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // (NEW) For navigation
-import { motion } from 'framer-motion'; // (NEW) For animations
+import { useNavigate } from 'react-router-dom';
+// (DELETED) Framer Motion import
+// import { motion } from 'framer-motion';
 
-// (NEW) React Query Imports
+// React Query Imports
 import { useInfiniteQuery } from '@tanstack/react-query';
 
 // Import the official stylesheet for react-day-picker
@@ -31,33 +32,21 @@ import { SearchBar } from '../components/SearchBar';
 import { DateRangePicker } from '../components/DateRangePicker';
 import { FilterBar } from '../components/FilterBar';
 
-// --- (NEW) Constants ---
+// --- Constants ---
 const PAGE_SIZE = 9; // Number of hotels to fetch per page
 
-// --- (NEW) Sort Options ---
+// --- Sort Options ---
 const sortOptions = [
   { label: 'Popularity', value: 'popularity_score.desc' },
   { label: 'Price (Low to High)', value: 'base_price.asc' },
   { label: 'Price (High to Low)', value: 'base_price.desc' },
 ];
 
-// --- (NEW) Framer Motion Variants ---
-const gridContainerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1, // Stagger effect
-    },
-  },
-};
+// --- (DELETED) Framer Motion Variants ---
+// const gridContainerVariants = { ... };
+// const gridItemVariants = { ... };
 
-const gridItemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0 },
-};
-
-// --- (NEW) Data fetching function for React Query ---
+// --- Data fetching function for React Query ---
 type FetchHotelsParams = {
   pageParam?: number;
   query: string;
@@ -66,6 +55,7 @@ type FetchHotelsParams = {
   dates: DateRange;
 };
 
+// (MODIFIED) This function is now correct and handles empty queries
 const fetchHotelsQuery = async ({ 
   pageParam = 0, 
   query, 
@@ -77,7 +67,7 @@ const fetchHotelsQuery = async ({
 
   let queryBuilder;
 
-  // --- (NEW) DATE AVAILABILITY FILTER ---
+  // --- DATE AVAILABILITY FILTER ---
   if (dates.from && dates.to) {
     queryBuilder = supabase.rpc('get_available_hotels', {
       check_in_date: dates.from.toISOString().split('T')[0],
@@ -88,9 +78,8 @@ const fetchHotelsQuery = async ({
   }
 
   // 1. Apply Search Query (on name OR city)
-  if (query) {
-    queryBuilder = queryBuilder.or(`name.ilike.%${query}%,address->>city.ilike.%${query}%`);
-  }
+  // This now correctly handles an empty string query
+  queryBuilder = queryBuilder.or(`name.ilike.%${query}%,address->>city.ilike.%${query}%`);
 
   // 2. Apply Price Filter
   queryBuilder = queryBuilder.lte('base_price', filters.priceRange.max);
@@ -133,9 +122,27 @@ const fetchHotelsQuery = async ({
   };
 };
 
+// --- Debounce Hook ---
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    // Cancel the timeout if value changes
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 // --- PAGE COMPONENT: BrowsePage (UPDATED) ---
 export const BrowsePage = () => {
-  const [query, setQuery] = useState("");
+  const [searchInputValue, setSearchInputValue] = useState(""); 
   const [dates, setDates] = useState<DateRange>({ from: undefined, to: undefined });
   const [filters, setFilters] = useState<Filters>({
     priceRange: { min: 0, max: 20000 },
@@ -144,26 +151,23 @@ export const BrowsePage = () => {
     amenities: []
   });
   
-  // (REMOVED) hotels, isLoading, isLoadingMore, page, hasMore states
-  
   const [sortBy, setSortBy] = useState(sortOptions[0].value); 
-
   const navigate = useNavigate(); 
+  const debouncedSearchQuery = useDebounce(searchInputValue, 300); // 300ms delay
 
-  // --- (NEW) React Query hook for infinite scrolling ---
   const {
     data,
     error,
     fetchNextPage,
     hasNextPage,
+    isFetching,
     isFetchingNextPage,
-    isLoading, // This is true only for the initial fetch
+    isLoading,
   } = useInfiniteQuery({
-    // (NEW) queryKey automatically refetches when dependencies change
-    queryKey: ['hotels', query, filters, sortBy, dates], 
+    queryKey: ['hotels', debouncedSearchQuery, filters, sortBy, dates], 
     queryFn: ({ pageParam }) => fetchHotelsQuery({ 
       pageParam, 
-      query, 
+      query: debouncedSearchQuery,
       filters, 
       sortBy, 
       dates 
@@ -172,63 +176,46 @@ export const BrowsePage = () => {
     getNextPageParam: (lastPage) => lastPage.nextPage,
   });
 
-  // (NEW) Flatten the array of pages into a single array of hotels
   const hotels = data?.pages.flatMap(page => page.data) ?? [];
 
   const handleSearch = (searchQuery: string) => {
-    setQuery(searchQuery);
+    setSearchInputValue(searchQuery);
   };
   
-  // (REMOVED) useEffect hook, React Query handles this
-  // (REMOVED) handleLoadMore, React Query provides fetchNextPage
-
   return (
     <div className="bg-gray-100 min-h-screen">
       
-      {/* --- Header & Search Bar (MODIFIED) --- */}
-      <header className="sticky top-0 z-30 bg-white shadow-sm p-4">
-        <div className="container mx-auto max-w-7xl">
-          {/* (MODIFIED) Added 'justify-center' */}
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-            
-            {/* --- (DELETED) This line was the duplicate logo --- */}
-            {/* <h1 className="text-2xl font-bold text-blue-600">ProBooker</h1> */}
-
-            <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-2 w-full max-w-3xl">
-              <SearchBar 
-                query={query} 
-                onQueryChange={setQuery} 
-                onSearch={handleSearch} 
-              />
-              <DateRangePicker range={dates} onRangeChange={setDates} />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* --- Main Content --- */}
-      <main className="container mx-auto max-w-7xl p-4 mt-6">
+      <main className="container mx-auto max-w-screen-2xl p-4 mt-6">
+        
         <div className="flex flex-col lg:flex-row gap-6">
           
-          {/* --- Filters (Sidebar) --- */}
           <aside className="w-full lg:w-1/4">
-            <div className="sticky top-24">
+            <div className="sticky top-24 flex flex-col gap-6"> 
+              
+              <div className="bg-white shadow-md p-4 rounded-xl border border-gray-100">
+                <div className="flex flex-col gap-4">
+                  <SearchBar 
+                    query={searchInputValue}
+                    onQueryChange={setSearchInputValue}
+                    onSearch={handleSearch} 
+                  />
+                  <DateRangePicker range={dates} onRangeChange={setDates} />
+                </div>
+              </div>
+
               <FilterBar filters={filters} onFilterChange={setFilters} />
             </div>
           </aside>
 
-          {/* --- Hotel Grid (Main) --- */}
           <section className="w-full lg:w-3/4">
-            {/* --- Header with Sorting --- */}
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-gray-900">
-                {isLoading 
+                {(isLoading || isFetching) && !isFetchingNextPage
                   ? 'Searching...' 
                   : `${hotels.length} results found`
                 }
               </h2>
               
-              {/* --- Sort Dropdown --- */}
               <div className="relative">
                 <select
                   value={sortBy}
@@ -243,67 +230,70 @@ export const BrowsePage = () => {
               </div>
             </div>
 
-            {/* --- Results Grid --- */}
-            {isLoading ? (
-              // Main loading spinner for new search
-              <div className="col-span-full text-center py-16 text-gray-500">
-                <Loader2 size={32} className="mx-auto animate-spin" />
-                <p className="mt-2">Fetching hotels from the database...</p>
-              </div>
-            ) : error ? (
-              // (NEW) Error state
-              <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
-                <h3 className="text-xl font-semibold text-red-700">Error fetching hotels</h3>
-                <p className="text-gray-500 mt-2">{(error as Error).message}</p>
-              </div>
-            ) : (
-              <>
-                {hotels.length > 0 ? (
-                  <motion.div // (NEW) Animation wrapper
-                    className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-                    variants={gridContainerVariants}
-                    initial="hidden"
-                    animate="visible"
-                  >
-                    {hotels.map(hotel => (
-                      <motion.div key={hotel.id} variants={gridItemVariants}>
-                        <HotelCard 
-                          hotel={hotel} 
-                          onClick={(h) => navigate(`/hotel/${h.slug}`)} 
-                        />
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                ) : (
-                  // No results found
-                  <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
-                    <h3 className="text-xl font-semibold text-gray-700">No hotels found</h3>
-                    <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
-                  </div>
-                )}
-                
-                {/* --- (UPDATED) Load More Button --- */}
-                <div className="mt-8 text-center">
-                  {hasNextPage ? (
-                    <button
-                      onClick={() => fetchNextPage()}
-                      disabled={isFetchingNextPage}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center justify-center mx-auto"
-                    >
-                      {isFetchingNextPage ? (
-                        <Loader2 size={20} className="animate-spin" />
-                      ) : (
-                        'Load More Results'
-                      )}
-                    </button>
-                  ) : (
-                    <p className="text-gray-500">
-                      {hotels.length > 0 ? "You've reached the end of the results." : ""}
-                    </p>
-                  )}
+            <div className="relative">
+              
+              {(isFetching && !isLoading && !isFetchingNextPage) && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm rounded-lg">
+                  <Loader2 size={48} className="text-blue-600 animate-spin" />
                 </div>
-              </>
-            )}
+              )}
+
+              {isLoading ? (
+                <div className="col-span-full text-center py-16 text-gray-500">
+                  <Loader2 size={32} className="mx-auto animate-spin" />
+                  <p className="mt-2">Fetching hotels from the database...</p>
+                </div>
+              ) : error ? (
+                <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
+                  <h3 className="text-xl font-semibold text-red-700">Error fetching hotels</h3>
+                  <p className="text-gray-500 mt-2">{(error as Error).message}</p>
+                </div>
+              ) : (
+                <>
+                  {hotels.length > 0 ? (
+                    // (DELETED) motion.div wrapper
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {hotels.map(hotel => (
+                        // (DELETED) motion.div wrapper
+                        <HotelCard 
+                          key={hotel.id} // (MODIFIED) key is now on HotelCard
+                          hotel={hotel} 
+                          onClick={(h) => navigate(`/hotel/${h.slug}`, { 
+                            state: { dates: dates } 
+                          })} 
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    // No results found
+                    <div className="col-span-full text-center py-16 bg-white rounded-lg shadow-md">
+                      <h3 className="text-xl font-semibold text-gray-700">No hotels found</h3>
+                      <p className="text-gray-500 mt-2">Try adjusting your search or filters.</p>
+                    </div>
+                  )}
+                  
+                  <div className="mt-8 text-center">
+                    {hasNextPage ? (
+                      <button
+                        onClick={() => fetchNextPage()}
+                        disabled={isFetchingNextPage}
+                        className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 flex items-center justify-center mx-auto"
+                      >
+                        {isFetchingNextPage ? (
+                          <Loader2 size={20} className="animate-spin" />
+                        ) : (
+                          'Load More Results'
+                        )}
+                      </button>
+                    ) : (
+                      <p className="text-gray-500">
+                        {hotels.length > 0 ? "You've reached the end of the results." : ""}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </section>
         </div>
       </main>
