@@ -150,7 +150,7 @@ export const FilterBar = ({ filters, onFilterChange }: FilterBarProps) => {
               step={100}
               value={filters.priceRange.max}
               onChange={handlePriceChange}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-black"
             />
           </div>
           <div className="text-right text-sm text-gray-600 mt-1">
