@@ -205,7 +205,7 @@ VITE_RESEND_API_KEY=
 
 ### Browse Hotels
 
-![Browse Hotels](assets/browse-page.jpeg)
+![Browse Hotels](src/assets/browse-page.jpeg)
 
 ### Booking Confirmation
 
