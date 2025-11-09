@@ -2,18 +2,7 @@
 import { z } from 'zod';
 
 /**
- * (REMOVED) Schema for the first step of the authentication flow (AuthOtpFlow.tsx).
- */
-// export const emailSchema = z.object({ ... });
-
-/**
- * (REMOVED) Schema for the second step of the authentication flow (AuthOtpFlow.tsx).
- */
-// export const otpSchema = z.object({ ... });
-
-/**
- * Schema for the Sign In form (AuthForm.tsx).
- * (No changes)
+ * Schema for the Sign In (Password) form (AuthForm.tsx).
  */
 export const loginSchema = z.object({
   email: z
@@ -26,7 +15,31 @@ export const loginSchema = z.object({
 });
 
 /**
- * (UPDATED) Schema for the FIRST step of Sign Up (AuthForm.tsx).
+ * Schema for the Sign In with OTP (Email) form (AuthForm.tsx).
+ */
+export const loginOtpEmailSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Invalid email address'),
+});
+
+/**
+ * Schema for the Sign In with OTP (Verify) form (AuthForm.tsx).
+ */
+export const loginOtpVerifySchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Invalid email address'),
+  otp: z
+    .string()
+    .min(1, 'Code is required')
+    .length(6, 'The code must be 6 digits'),
+});
+
+/**
+ * Schema for the FIRST step of Sign Up (AuthForm.tsx).
  */
 export const signupEmailSchema = z.object({
   email: z
@@ -38,7 +51,7 @@ export const signupEmailSchema = z.object({
 });
 
 /**
- * (NEW) Schema for the SECOND step of Sign Up (AuthForm.tsx).
+ * Schema for the SECOND step of Sign Up (AuthForm.tsx).
  */
 export const signupVerifySchema = z.object({
   email: z
@@ -60,16 +73,38 @@ export const signupVerifySchema = z.object({
   path: ["confirmPassword"], // Error will be attached to this field
 });
 
-
 /**
- * (REMOVED) Schema for the Create Password page (CreatePasswordPage.tsx).
- * This page is no longer needed for sign-up.
+ * Schema for the "Create Password" page (CreatePasswordPage.tsx).
+ * This is used after a magic link/OTP signup.
  */
-// export const createPasswordSchema = z.object({ ... });
+export const createPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z
+    .string()
+    .min(1, 'Please confirm your password'),
+  // TODO: Add a real captcha validation schema
+  captcha: z.string().optional(),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
 
 /**
- * Schema for the Reset Password page (ResetPasswordPage.tsx).
- * (No changes)
+ * (NEW) Schema for the Reset Password page (ResetPasswordPage.tsx) - LOGGED OUT, STEP 1
+ */
+export const resetPasswordEmailSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Invalid email address'),
+});
+
+
+/**
+ * Schema for the Reset Password page (ResetPasswordPage.tsx) - LOGGED OUT FLOW, STEP 2
  */
 export const resetPasswordSchema = z.object({
   email: z
@@ -93,11 +128,28 @@ export const resetPasswordSchema = z.object({
 
 
 /**
+ * (NEW) Schema for the Reset Password page (ResetPasswordPage.tsx) - LOGGED IN FLOW
+ */
+export const resetPasswordLoggedInSchema = z.object({
+  currentPassword: z
+    .string()
+    .min(1, 'Current password is required'),
+  password: z
+    .string()
+    .min(8, 'New password must be at least 8 characters'),
+  confirmPassword: z
+    .string()
+    .min(1, 'Please confirm your new password'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "New passwords do not match",
+  path: ["confirmPassword"],
+});
+
+
+/**
  * Schema for the User Profile form (AccountPage.tsx).
- * (No changes)
  */
 export const profileSchema = z.object({
-  // ... (no changes)
   full_name: z
     .string()
     .min(2, 'Name must be at least 2 characters')
@@ -117,7 +169,7 @@ export const profileSchema = z.object({
     .optional()
     .or(z.literal('')),
   date_of_birth: z
-    .string() // HTML date inputs provide 'YYYY-MM-DD' strings
+    .string()
     .optional()
     .or(z.literal('')),
   language: z
@@ -134,7 +186,6 @@ export const profileSchema = z.object({
 
 /**
  * Schema for the Review form (ReviewModal in MyAccomodationsPage.tsx).
- * (No changes)
  */
 export const reviewSchema = z.object({
   rating: z.number().min(1, 'Please select a star rating.'),

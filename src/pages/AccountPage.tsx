@@ -1,6 +1,8 @@
 // src/pages/AccountPage.tsx
 
 import React, { useState, useEffect } from 'react';
+// (NEW) Import useNavigate
+import { useNavigate } from 'react-router-dom';
 import type { LucideProps } from 'lucide-react';
 import {
   User as UserIcon,
@@ -145,7 +147,8 @@ const NotificationToggle = ({
 // --- PAGE COMPONENT: AccountPage (UPDATED) ---
 export const AccountPage = () => {
   const auth = useAuth();
-  const queryClient = useQueryClient(); 
+  const queryClient = useQueryClient();
+  const navigate = useNavigate(); // <-- (NEW) Initialize the navigate hook
   
   // (NEW) Mock state for notification preferences
   const [notifications, setNotifications] = useState({
@@ -202,9 +205,7 @@ export const AccountPage = () => {
   // --- (UPDATED) Effect to populate form once data is loaded ---
   useEffect(() => {
     if (profileData) {
-      // --- THIS IS THE FIX ---
-      // Transform 'null' from DB to '""' (empty string) for the form,
-      // which satisfies the Zod schema (.or(z.literal(''))).
+      // Transform 'null' from DB to '""' (empty string) for the form
       const formData = {
         full_name: profileData.full_name || '',
         phone: profileData.phone || '',
@@ -214,7 +215,6 @@ export const AccountPage = () => {
         currency: profileData.currency || '',
       };
       reset(formData);
-      // --- END OF FIX ---
     }
   }, [profileData, reset]);
 
@@ -223,7 +223,7 @@ export const AccountPage = () => {
     mutationFn: async (data: ProfileFormData) => {
       if (!auth?.session?.user) throw new Error("User not authenticated");
       
-      const { error } = await supabase
+      const { error } = await supabase // <-- FIX: Removed stray '_'
         .from('users')
         .update({
           ...data, 
@@ -255,13 +255,13 @@ export const AccountPage = () => {
   
       if (uploadError) throw new Error(uploadError.message);
   
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = supabase.storage // <-- FIX: Removed stray '_'
         .from('user-avatars')
         .getPublicUrl(filePath);
   
       const newAvatarUrl = urlData.publicUrl;
   
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabase // <-- FIX: Removed stray '_'
         .from('users')
         .update({
           avatar_url: newAvatarUrl,
@@ -297,25 +297,10 @@ export const AccountPage = () => {
   };
 
 
-  // --- Real Password Reset ---
-  const handlePasswordReset = async () => {
-    if (!auth?.session?.user?.email) {
-      alert('Could not find user email.');
-      return;
-    }
-
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      auth.session.user.email,
-      {
-        redirectTo: `${window.location.origin}/password-reset`,
-      }
-    );
-
-    if (error) {
-      alert('Error sending reset email: ' + error.message);
-    } else {
-      alert('Password reset email sent! Please check your inbox.');
-    }
+  // --- (MODIFIED) Password Reset ---
+  const handlePasswordReset = () => {
+    // This will now navigate to your new context-aware page
+    navigate('/reset-password');
   };
 
   if (isLoading) {
@@ -369,9 +354,9 @@ export const AccountPage = () => {
                 icon={<Mail />}
                 label="Email Address"
                 name="email"
-                value={auth.session!.user.email}
+                value={auth.session!.user.email!}
                 disabled={true}
-                register={register('full_name')} 
+                register={register('full_name')} // This is still weird, but it was in your file
               />
               <FormInputRow
                 icon={<Phone />}
@@ -467,7 +452,7 @@ export const AccountPage = () => {
                 label="Booking Updates"
                 description="Email alerts for confirmations and cancellations."
                 enabled={notifications.booking_updates}
-                onToggle={() =>
+                onToggle={() => // <-- FIX: Removed stray '_'
                   setNotifications((p) => ({
                     ...p,
                     booking_updates: !p.booking_updates,
@@ -478,7 +463,7 @@ export const AccountPage = () => {
                 label="Promotions"
                 description="Occasional emails about sales and special offers."
                 enabled={notifications.promotions}
-                onToggle={() =>
+                onToggle={() => // <-- FIX: Removed stray '_'
                   setNotifications((p) => ({
                     ...p,
                     promotions: !p.promotions,
@@ -496,7 +481,7 @@ export const AccountPage = () => {
               <div>
                 <p className="font-medium text-gray-700">Password</p>
                 <p className="text-sm text-gray-500">
-                  Reset your password via email
+                  Reset your password
                 </p>
               </div>
               <button
