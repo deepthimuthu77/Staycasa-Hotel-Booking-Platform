@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
 
     // 7. Send the email using Resend
     await resend.emails.send({
-      from: 'ProBooker@houseofstk.com', 
+      from: 'StayCasa@houseofstk.com', 
       to: [user.email],
       subject: `Your Booking is Confirmed! (Ref: ${booking.booking_reference})`,
       html: `

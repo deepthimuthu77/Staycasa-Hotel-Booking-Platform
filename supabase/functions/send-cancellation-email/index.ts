@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 
     // 8. Send the email using Resend
     await resend.emails.send({
-      from: 'ProBooker@houseofstk.com', // Use the same 'from' address
+      from: 'StayCasa@houseofstk.com', // Use the same 'from' address
       to: [user.email],
       subject: subject,
       html: `
